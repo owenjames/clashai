@@ -247,7 +247,7 @@ body.in-battle #game { display: block; }
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 <script>
-if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1|192\.168\.)/.test(location.hostname)) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   });

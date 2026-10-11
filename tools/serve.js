@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Static file server for the project root. Usage: node tools/serve.js [port]
+// Static file server for the project root with live reload. Usage: node tools/serve.js [port]
+// Pages served here reload themselves when a project file changes (dev only; never shipped).
 'use strict';
 
 const http = require('http');
@@ -27,6 +28,26 @@ const TYPES = {
   '.woff2': 'font/woff2',
 };
 
+// Live reload: HTML responses get a tiny EventSource client, and file changes broadcast a reload.
+const RELOAD_PATH = '/__reload';
+const RELOAD_SNIPPET = `<script>(function(){var es=new EventSource('${RELOAD_PATH}');es.onmessage=function(){location.reload();};})();</script>`;
+const clients = new Set();
+let reloadTimer = null;
+function broadcastReload() {
+  clearTimeout(reloadTimer);
+  // Editors often write several files at once, so coalesce bursts into one reload.
+  reloadTimer = setTimeout(() => {
+    for (const res of clients) res.write('data: reload\n\n');
+  }, 120);
+}
+for (const dir of ['.', 'js', 'preview', 'tools']) {
+  const full = path.join(ROOT, dir);
+  if (!fs.existsSync(full)) continue;
+  fs.watch(full, { recursive: dir === 'preview' }, (evt, name) => {
+    if (name && /\.(html|js|css|json|png|glb|gltf|webmanifest)$/i.test(name)) broadcastReload();
+  });
+}
+
 function send(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end(body);
@@ -41,6 +62,13 @@ const server = http.createServer((req, res) => {
   } catch (e) {
     return send(res, 400, 'Bad request');
   }
+  if (urlPath === RELOAD_PATH) {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    res.write(': connected\n\n');
+    clients.add(res);
+    req.on('close', () => clients.delete(res));
+    return;
+  }
   if (urlPath.endsWith('/')) urlPath += 'index.html';
 
   const file = path.normalize(path.join(ROOT, urlPath));
@@ -48,6 +76,12 @@ const server = http.createServer((req, res) => {
 
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return send(res, 404, 'Not found');
+    if (path.extname(file).toLowerCase() === '.html' && req.method === 'GET') {
+      const html = fs.readFileSync(file, 'utf8');
+      const body = html.includes('</body>') ? html.replace('</body>', RELOAD_SNIPPET + '</body>') : html + RELOAD_SNIPPET;
+      res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache' });
+      return res.end(body);
+    }
     res.writeHead(200, {
       'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Content-Length': st.size,
