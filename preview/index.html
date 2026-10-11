@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1d2a38">
+<title>Arena asset preview</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2a38;
+    font-family: -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif; color: #f2f5fa; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .chip { position: fixed; background: rgba(12, 18, 28, 0.72); border-radius: 10px; font-size: 13px; line-height: 1; }
+  #title { top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; padding: 7px 10px; }
+  #fps { opacity: 0.7; margin-left: 6px; }
+  #mode { bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); right: 12px; padding: 10px 14px;
+    border: 0; color: #f2f5fa; font: inherit; cursor: pointer; }
+  #load { top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 10px 14px; }
+  #load.err { color: #ff8a8a; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="title" class="chip">Arena asset preview<span id="fps"></span></div>
+<button id="mode" class="chip" type="button" disabled>Sprites</button>
+<div id="load" class="chip">Loading models</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+// ---------- constants ----------
+const BASE = 'assets/polypizza/';
+const FILES = {
+  knight: 'knight.glb', archer: 'archer.glb', giant: 'giant.glb', goblin: 'goblin.glb',
+  skeleton: 'skeleton.glb', wizard: 'wizard.glb', pekka: 'pekka.glb', hog: 'hog.glb',
+  dragon: 'dragon.glb', princess: 'princess_tower.glb', king: 'king_tower.glb',
+  cannon: 'cannon.glb', tree: 'tree.glb', pine: 'pine.glb', rock: 'rock.glb', bridge: 'bridge.glb',
+};
+// h = target height in tiles. Animation overrides map a role to a clip name.
+const TROOPS = {
+  knight:   { h: 1.0,  hp: 70,  dmg: 14, range: 1.0, speed: 1.1, sight: 4.0, anim: {} },
+  archer:   { h: 1.0,  hp: 45,  dmg: 9,  range: 4.0, speed: 1.0, sight: 6.0, anim: { walk: 'Walk_Gun', attack: 'Idle_Gun' } },
+  giant:    { h: 1.8,  hp: 190, dmg: 18, range: 1.0, speed: 0.6, sight: 4.0, anim: {} },
+  goblin:   { h: 0.65, hp: 35,  dmg: 8,  range: 0.9, speed: 1.7, sight: 4.0, anim: {} },
+  skeleton: { h: 0.85, hp: 28,  dmg: 7,  range: 0.9, speed: 1.3, sight: 4.0, anim: {} },
+  wizard:   { h: 1.05, hp: 50,  dmg: 13, range: 3.0, speed: 0.9, sight: 6.0, anim: { attack: 'Bite_Front' } },
+  pekka:    { h: 1.35, hp: 200, dmg: 22, range: 1.0, speed: 0.8, sight: 4.0, anim: { attack: 'Attack' } },
+  hog:      { h: 0.95, hp: 110, dmg: 12, range: 1.0, speed: 1.7, sight: 4.0, anim: { attack: 'Headbutt' }, rider: true, barY: 1.55 },
+  dragon:   { h: 1.2,  hp: 150, dmg: 10, range: 2.4, speed: 1.4, sight: 9.0, anim: { walk: 'Dragon_Flying', idle: 'Dragon_Flying', attack: 'Dragon_Attack', death: 'Dragon_Death' }, flying: true },
+};
+const HEIGHTS = { princess: 3.2, king: 3.8, cannon: 1.25, tree: 2.6, pine: 2.9, rock: 0.7 };
+const TEAM = {
+  blue: { color: new THREE.Color(0x2e7dff), tint: 0.45, bar: 0x44dd66, sprite: new THREE.Color(0.6, 0.8, 1.0) },
+  red:  { color: new THREE.Color(0xff3b3b), tint: 0.45, bar: 0xff5555, sprite: new THREE.Color(1.0, 0.62, 0.62) },
+};
+const ANIM_PREF = {
+  idle:   ['Idle', 'Idle_Neutral', 'Flying_Idle', 'Skeleton_Idle'],
+  walk:   ['Walk', 'Run', 'Skeleton_Running', 'Dragon_Flying', 'Walk_Gun'],
+  attack: ['Attack', 'Dragon_Attack', 'Skeleton_Attack', 'Dagger_Attack', 'Shoot', 'Punch', 'Headbutt', 'Slash'],
+  death:  ['Death', 'Dead', 'Dragon_Death', 'Skeleton_Death'],
+};
+// Lanes: princess tower x positions, which also set the bridge x positions.
+const LANES = [3.5, 14.5];
+const RIVER = { z0: 15, z1: 17, mid: 16 };
+const PITCH = THREE.MathUtils.degToRad(58); // camera look-down angle
+const CAM_TARGET = new THREE.Vector3(9, 0, 16);
+// Slots keep a fixed roster per team; a dead unit respawns in its slot after a delay.
+const SLOT_DEFS = [
+  { team: 'blue', type: 'knight',   x: 3.5 }, { team: 'blue', type: 'archer',   x: 14.5 },
+  { team: 'blue', type: 'goblin',   x: 3.5 }, { team: 'blue', type: 'skeleton', x: 14.5 },
+  { team: 'blue', type: 'giant',    x: 3.5 }, { team: 'blue', type: 'hog',      x: 14.5 },
+  { team: 'blue', type: 'dragon',   x: 9,   z: 9 },
+  { team: 'red',  type: 'knight',   x: 14.5 }, { team: 'red', type: 'archer',   x: 3.5 },
+  { team: 'red',  type: 'goblin',   x: 14.5 }, { team: 'red', type: 'skeleton', x: 3.5 },
+  { team: 'red',  type: 'wizard',   x: 14.5 }, { team: 'red', type: 'pekka',    x: 3.5 },
+];
+
+// ---------- renderer and scene ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1d2a38);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
+
+const hemi = new THREE.HemisphereLight(0xdff3ff, 0x3d5a2a, 1.1);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(3, 14, 22);
+sun.target.position.set(9, 0, 16);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 22, bottom: -22, near: 1, far: 60 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.02;
+scene.add(sun, sun.target);
+
+// Fit the camera so the whole arena (plus edge decor) fits the screen width.
+function fitCamera() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  const dir = new THREE.Vector3(0, Math.sin(PITCH), -Math.cos(PITCH));
+  const corners = [];
+  for (const x of [-1.5, 19.5]) for (const z of [-1.5, 33]) for (const y of [0, 4]) corners.push(new THREE.Vector3(x, y, z));
+  const v = new THREE.Vector3();
+  let lo = 5, hi = 200;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    camera.position.copy(CAM_TARGET).addScaledVector(dir, mid);
+    camera.lookAt(CAM_TARGET);
+    camera.updateMatrixWorld();
+    const fits = corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) <= 0.96 && Math.abs(v.y) <= 0.9; });
+    if (fits) hi = mid; else lo = mid;
+  }
+  camera.position.copy(CAM_TARGET).addScaledVector(dir, hi);
+  camera.lookAt(CAM_TARGET);
+  camera.updateMatrixWorld();
+}
+
+// ---------- textures and static arena ----------
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const grassTex = canvasTexture(18 * 24, 32 * 24, (g, w, h) => {
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 18; x++) {
+    g.fillStyle = (x + y) % 2 ? '#6fb34a' : '#64a842';
+    g.fillRect(x * 24, y * 24, 24, 24);
+  }
+});
+grassTex.magFilter = THREE.NearestFilter;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(18, 32), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2;
+ground.position.set(9, 0, 16);
+ground.receiveShadow = true;
+scene.add(ground);
+
+const waterTex = canvasTexture(64, 64, (g, w, h) => {
+  g.fillStyle = '#2f8fd6'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#4fa9e6';
+  for (let i = -1; i < 4; i++) { g.beginPath(); g.moveTo(i * 24, h); g.lineTo(i * 24 + 12, h); g.lineTo(i * 24 + 36, 0); g.lineTo(i * 24 + 24, 0); g.fill(); }
+});
+waterTex.wrapS = waterTex.wrapT = THREE.RepeatWrapping;
+waterTex.repeat.set(3, 1);
+const water = new THREE.Mesh(new THREE.PlaneGeometry(18, RIVER.z1 - RIVER.z0),
+  new THREE.MeshStandardMaterial({ map: waterTex, roughness: 0.35, metalness: 0.05 }));
+water.rotation.x = -Math.PI / 2;
+water.position.set(9, 0.01, RIVER.mid);
+water.receiveShadow = true;
+scene.add(water);
+
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x8b6b4a, roughness: 0.9 });
+for (const x of [-0.2, 18.2]) {
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 33), wallMat);
+  wall.position.set(x, 0.22, 16);
+  wall.castShadow = wall.receiveShadow = true;
+  scene.add(wall);
+}
+
+// ---------- model helpers ----------
+const gltfLoader = new GLTFLoader();
+const gltfs = {};
+
+// Scale a model so its Y extent equals `height`, with feet at y=0 and centred on x/z.
+function normalizeTo(obj, height) {
+  const wrap = new THREE.Group();
+  wrap.add(obj);
+  // Non-precise bounds: for SkinnedMesh three.js then uses the skinned bounding box, which
+  // includes armature scale. Precise mode reads raw vertices and misses rig transforms.
+  obj.updateMatrixWorld(true);
+  obj.traverse(o => { if (o.isSkinnedMesh) o.computeBoundingBox(); });
+  let box = new THREE.Box3().setFromObject(wrap, false);
+  const size = box.getSize(new THREE.Vector3());
+  obj.scale.multiplyScalar(height / Math.max(size.y, 1e-5));
+  wrap.updateMatrixWorld(true);
+  obj.traverse(o => { if (o.isSkinnedMesh) o.computeBoundingBox(); });
+  box = new THREE.Box3().setFromObject(wrap, false);
+  const c = box.getCenter(new THREE.Vector3());
+  obj.position.set(-c.x, -box.min.y, -c.z);
+  return wrap;
+}
+
+// Bridges run along z (across the river) and span two lanes wide.
+function bridgeTemplate(obj) {
+  const wrap = new THREE.Group();
+  wrap.add(obj);
+  let size = new THREE.Box3().setFromObject(wrap, true).getSize(new THREE.Vector3());
+  if (size.x > size.z) obj.rotation.y = Math.PI / 2;
+  wrap.updateMatrixWorld(true);
+  size = new THREE.Box3().setFromObject(wrap, true).getSize(new THREE.Vector3());
+  const sx = 2.1 / size.x, sz = 4.2 / size.z;
+  obj.scale.set(sx, (sx + sz) / 2, sz);
+  wrap.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(wrap, true);
+  const c = box.getCenter(new THREE.Vector3());
+  obj.position.set(-c.x, -box.min.y, -c.z);
+  return wrap;
+}
+
+// Team tint: a cached material clone, lerped toward the team colour.
+const tintCache = new Map();
+function teamMaterial(mat, team) {
+  const key = mat.uuid + team;
+  let m = tintCache.get(key);
+  if (!m) {
+    m = mat.clone();
+    if (m.color) m.color.lerp(TEAM[team].color, TEAM[team].tint);
+    tintCache.set(key, m);
+  }
+  return m;
+}
+function dressClone(obj, team, shadows) {
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = shadows;
+    o.receiveShadow = shadows;
+    if (team) o.material = Array.isArray(o.material) ? o.material.map(m => teamMaterial(m, team)) : teamMaterial(o.material, team);
+  });
+}
+
+const TPL = {};   // key -> normalized template group
+const CLIPS = {}; // key -> animation clips
+// Build one instance of a template with its own AnimationMixer.
+function buildPart(key, team, shadows) {
+  const obj = SkeletonUtils.clone(TPL[key]);
+  dressClone(obj, team, shadows);
+  const mixer = new THREE.AnimationMixer(obj);
+  const acts = {};
+  for (const clip of CLIPS[key] || []) {
+    const short = clip.name.split('|').pop();
+    if (!acts[short]) acts[short] = mixer.clipAction(clip);
+  }
+  return { obj, mixer, acts, act: null, current: null };
+}
+function resolveActs(part, overrides = {}) {
+  const out = {};
+  for (const role of Object.keys(ANIM_PREF)) {
+    let act = overrides[role] && part.acts[overrides[role]];
+    if (!act) for (const n of ANIM_PREF[role]) if (part.acts[n]) { act = part.acts[n]; break; }
+    out[role] = act || null;
+  }
+  const first = Object.values(part.acts)[0] || null;
+  out.idle = out.idle || out.walk || first;
+  out.walk = out.walk || out.idle;
+  out.attack = out.attack || out.idle;
+  return out;
+}
+function playRole(part, role) {
+  const next = part.act[role] || part.act.idle;
+  if (!next || next === part.current) return;
+  next.reset();
+  if (role === 'death') { next.setLoop(THREE.LoopOnce, 1); next.clampWhenFinished = true; }
+  else next.setLoop(THREE.LoopRepeat, Infinity);
+  next.fadeIn(0.15).play();
+  if (part.current) part.current.fadeOut(0.15);
+  part.current = next;
+}
+
+// A troop visual: the model (plus a rider for the hog), in a group whose yaw we control.
+function buildVisual(type, team, shadows) {
+  const cfg = TROOPS[type];
+  const root = new THREE.Group();
+  const parts = [];
+  const main = buildPart(type, team, shadows);
+  main.act = resolveActs(main, cfg.anim);
+  root.add(main.obj);
+  parts.push(main);
+  if (cfg.rider) {
+    const rider = buildPart('riderKnight', team, shadows);
+    rider.act = resolveActs(rider);
+    rider.obj.position.set(0, 0.5, -0.05);
+    root.add(rider.obj);
+    parts.push(rider);
+  }
+  return { root, parts };
+}
+
+// ---------- build templates ----------
+const setLoad = (text, err) => {
+  const el = document.getElementById('load');
+  el.textContent = text;
+  el.classList.toggle('err', !!err);
+};
+
+function buildTemplates() {
+  // The rider is a second copy of the knight, taken before the knight template is normalized.
+  TPL.riderKnight = normalizeTo(SkeletonUtils.clone(gltfs.knight.scene), 0.55);
+  CLIPS.riderKnight = gltfs.knight.animations;
+  for (const type of Object.keys(TROOPS)) {
+    TPL[type] = normalizeTo(gltfs[type].scene, TROOPS[type].h);
+    CLIPS[type] = gltfs[type].animations;
+  }
+  for (const key of Object.keys(HEIGHTS)) {
+    TPL[key] = normalizeTo(gltfs[key].scene, HEIGHTS[key]);
+    CLIPS[key] = gltfs[key].animations;
+  }
+  TPL.bridge = bridgeTemplate(gltfs.bridge.scene);
+}
+
+// Decor, towers and cannons.
+const towers = [];
+function makeTower(kind, team, x, z) {
+  const part = buildPart(kind, team, true);
+  const root = new THREE.Group();
+  root.add(part.obj);
+  root.position.set(x, 0, z);
+  scene.add(root);
+  const hp = kind === 'king' ? 240 : 120;
+  const h = HEIGHTS[kind];
+  const t = {
+    isTower: true, kind, team, x, z, radius: kind === 'king' ? 1.5 : 1.1,
+    hp, maxHp: hp, root, bar: makeBar(team), down: false, downT: 0, barY: h + 0.55,
+  };
+  towers.push(t);
+  return t;
+}
+const cannons = [];
+function placeCannon(x, z) {
+  const holder = new THREE.Group();
+  const part = buildPart('cannon', null, true);
+  holder.add(part.obj);
+  holder.position.set(x, 0, z);
+  scene.add(holder);
+  cannons.push(holder);
+}
+function scatter(key, positions) {
+  for (const [x, z] of positions) {
+    const part = buildPart(key, null, true);
+    part.obj.rotation.y = Math.random() * Math.PI * 2;
+    const g = new THREE.Group();
+    g.add(part.obj);
+    g.position.set(x, 0, z);
+    scene.add(g);
+  }
+}
+function placeArena() {
+  // Bridges sit on the river, one per lane.
+  for (const x of LANES) {
+    const b = buildPart('bridge', null, true);
+    const g = new THREE.Group();
+    g.add(b.obj);
+    g.position.set(x, 0.12, RIVER.mid);
+    scene.add(g);
+  }
+  // Towers: blue at the bottom of the screen (low z), red at the top.
+  for (const x of LANES) { makeTower('princess', 'blue', x, 5); makeTower('princess', 'red', x, 27); }
+  makeTower('king', 'blue', 9, 1.8);
+  makeTower('king', 'red', 9, 30.2);
+  placeCannon(16.0, 8.6);
+  placeCannon(2.0, 23.4);
+  scatter('tree', [[-1.0, 6], [-1.0, 12], [-1.0, 22], [-1.0, 27], [19.0, 4], [19.0, 16], [19.0, 26]]);
+  scatter('pine', [[-1.6, 2.5], [-1.6, 31], [19.6, 10], [19.6, 30]]);
+  scatter('rock', [[0.8, 14.3], [16.8, 13.6], [0.8, 18.4], [17.2, 18.6]]);
+}
+
+// ---------- health bars and sprites ----------
+function makeBar(team) {
+  const g = new THREE.Group();
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.13),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false }));
+  const fg = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.08),
+    new THREE.MeshBasicMaterial({ color: TEAM[team].bar, depthTest: false }));
+  fg.position.z = 0.002;
+  bg.renderOrder = 10; fg.renderOrder = 11;
+  g.add(bg, fg);
+  g.userData.fg = fg;
+  g.visible = false;
+  scene.add(g);
+  return g;
+}
+function setBar(g, frac) {
+  const fg = g.userData.fg;
+  fg.scale.x = Math.max(frac, 0.001);
+  fg.position.x = -0.42 * (1 - frac);
+}
+
+// Pre-rendered sprites: each troop is baked once at the same camera pitch into a 128x128 target.
+const SPRITE = {};
+function bakeSprites() {
+  const clear = new THREE.Color();
+  renderer.getClearColor(clear);
+  const clearAlpha = renderer.getClearAlpha();
+  const dir = new THREE.Vector3(0, Math.sin(PITCH), -Math.cos(PITCH));
+  for (const type of Object.keys(TROOPS)) {
+    const off = new THREE.Scene();
+    off.add(new THREE.HemisphereLight(0xdff3ff, 0x3d5a2a, 1.1));
+    const key = new THREE.DirectionalLight(0xffffff, 1.6);
+    key.position.set(-6, 14, 6);
+    off.add(key);
+    const vis = buildVisual(type, 'blue', false);
+    off.add(vis.root);
+    for (const p of vis.parts) { if (p.act.idle) p.act.idle.play(); p.mixer.update(0); }
+    const box = new THREE.Box3().setFromObject(vis.root, true);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const half = Math.max(size.x, size.y, size.z) * 0.6;
+    const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+    cam.position.copy(center).addScaledVector(dir, half / Math.tan(THREE.MathUtils.degToRad(15)));
+    cam.lookAt(center);
+    const rt = new THREE.WebGLRenderTarget(128, 128);
+    renderer.setRenderTarget(rt);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(off, cam);
+    renderer.setRenderTarget(null);
+    renderer.setClearColor(clear, clearAlpha);
+    const mats = {};
+    for (const team of ['blue', 'red']) {
+      mats[team] = new THREE.MeshBasicMaterial({ map: rt.texture, transparent: true, alphaTest: 0.04,
+        depthWrite: false, color: TEAM[team].sprite });
+    }
+    SPRITE[type] = { mats, size: half * 2, cy: center.y };
+  }
+}
+
+// ---------- units ----------
+const units = [];
+const slots = SLOT_DEFS.map((def, i) => ({ ...def, z: def.z ?? (def.team === 'blue' ? 8 : 24), unit: null, timer: i * 0.5, index: i }));
+let spriteMode = false;
+
+function makeUnit(slot) {
+  const cfg = TROOPS[slot.type];
+  const vis = buildVisual(slot.type, slot.team, true);
+  scene.add(vis.root);
+  const ring = new THREE.Mesh(new THREE.CircleGeometry(0.25 + 0.2 * cfg.h, 24),
+    new THREE.MeshBasicMaterial({ color: TEAM[slot.team].color, transparent: true, opacity: 0.55, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  scene.add(ring);
+  const sprite = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), SPRITE[slot.type].mats[slot.team]);
+  sprite.scale.setScalar(SPRITE[slot.type].size);
+  sprite.visible = false;
+  scene.add(sprite);
+  const u = {
+    type: slot.type, team: slot.team, cfg, slot: slot.index, lane: slot.x,
+    x: slot.x, z: slot.z + (Math.random() - 0.5) * 0.8, yaw: slot.team === 'blue' ? 0 : Math.PI,
+    hp: cfg.hp, maxHp: cfg.hp, cd: 0.4, target: null, retarget: 0, dead: false, deadT: 0,
+    grow: 0, parts: vis.parts, root: vis.root, ring, sprite, bar: makeBar(slot.team),
+    anim: null, bob: Math.random() * 6.28, moving: false,
+  };
+  u.root.rotation.y = u.yaw;
+  return u;
+}
+function spawnSlot(slot) {
+  const u = makeUnit(slot);
+  slot.unit = u;
+  units.push(u);
+}
+function removeUnit(u) {
+  scene.remove(u.root, u.ring, u.sprite, u.bar);
+  for (const p of u.parts) { p.mixer.stopAllAction(); p.mixer.uncacheRoot(p.obj); }
+  units.splice(units.indexOf(u), 1);
+  const slot = slots[u.slot];
+  slot.unit = null;
+  slot.timer = 3.0;
+}
+function kill(u) {
+  u.dead = true;
+  u.deadT = 0;
+  u.ring.visible = false;
+  u.bar.visible = false;
+  u.sprite.visible = false;
+  for (const p of u.parts) playRole(p, 'death');
+}
+function hit(t, dmg) {
+  if (t.isTower) {
+    if (t.down) return;
+    t.hp = Math.max(0, t.hp - dmg);
+    setBar(t.bar, t.hp / t.maxHp);
+    if (t.hp <= 0) { t.down = true; t.downT = 8; t.root.visible = false; t.bar.visible = false; }
+    return;
+  }
+  if (t.dead) return;
+  t.hp -= dmg;
+  setBar(t.bar, Math.max(t.hp, 0) / t.maxHp);
+  if (t.hp <= 0) kill(t);
+}
+
+function pickTarget(u) {
+  let best = null, bd = Infinity;
+  for (const o of units) {
+    if (o.team === u.team || o.dead) continue;
+    const d = Math.hypot(o.x - u.x, o.z - u.z);
+    if (d <= u.cfg.sight && d < bd) { bd = d; best = o; }
+  }
+  if (best) return best;
+  const enemyTowers = towers.filter(t => t.team !== u.team && !t.down);
+  if (u.cfg.flying) {
+    let nearest = null, nd = Infinity;
+    for (const t of enemyTowers) {
+      const d = Math.hypot(t.x - u.x, t.z - u.z);
+      if (d < nd) { nd = d; nearest = t; }
+    }
+    return nearest;
+  }
+  // Walkers push down their own lane: the lane princess first, then the king.
+  return enemyTowers.find(t => t.kind === 'princess' && Math.abs(t.x - u.lane) < 0.1)
+      || enemyTowers.find(t => t.kind === 'king') || null;
+}
+
+function updateUnit(u, dt) {
+  if (u.dead) {
+    u.deadT += dt;
+    if (u.deadT > 1.4) removeUnit(u);
+    return;
+  }
+  u.grow = Math.min(1, u.grow + dt * 4);
+  u.retarget -= dt;
+  if (u.retarget <= 0 || !u.target || u.target.dead || u.target.down) {
+    u.target = pickTarget(u);
+    u.retarget = 0.3;
+  }
+  const tg = u.target;
+  let mode = 'idle';
+  let gx = u.lane, gz = u.team === 'blue' ? 30 : 2;
+  if (tg) {
+    const reach = u.cfg.range + (tg.isTower ? tg.radius : 0.4);
+    if (Math.hypot(tg.x - u.x, tg.z - u.z) <= reach) mode = 'attack';
+    else { mode = 'walk'; gx = tg.x; gz = tg.z; }
+  } else if (Math.hypot(gx - u.x, gz - u.z) > 0.3) {
+    mode = 'walk';
+  }
+
+  let moving = false;
+  if (mode === 'walk') {
+    if (!u.cfg.flying) {
+      // Units across the river route through the nearest bridge.
+      const crossing = (gz - RIVER.mid) * (u.z - RIVER.mid) < 0;
+      if (crossing) {
+        gx = Math.abs(u.x - LANES[0]) < Math.abs(u.x - LANES[1]) ? LANES[0] : LANES[1];
+        if (Math.abs(u.z - RIVER.mid) > 1.2) gz = RIVER.mid;
+      }
+    }
+    const dx = gx - u.x, dz = gz - u.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.02) {
+      const step = Math.min(u.cfg.speed * dt, d);
+      u.x += dx / d * step;
+      u.z += dz / d * step;
+      u.yaw = lerpAngle(u.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10));
+      moving = true;
+    }
+    if (!u.cfg.flying) {
+      // Simple separation so units do not stack on one point.
+      let px = 0, pz = 0;
+      for (const o of units) {
+        if (o === u || o.dead || o.cfg.flying) continue;
+        const ox = u.x - o.x, oz = u.z - o.z;
+        const od = Math.hypot(ox, oz);
+        if (od > 0.001 && od < 0.65) { px += ox / od * (0.65 - od); pz += oz / od * (0.65 - od); }
+      }
+      u.x += px * dt * 4;
+      u.z += pz * dt * 4;
+    }
+  }
+  if (mode === 'attack' && tg) {
+    u.yaw = lerpAngle(u.yaw, Math.atan2(tg.x - u.x, tg.z - u.z), Math.min(1, dt * 12));
+    u.cd -= dt;
+    if (u.cd <= 0) { u.cd = 1.0; hit(tg, u.cfg.dmg); }
+  }
+  u.x = Math.min(17.3, Math.max(0.7, u.x));
+  u.z = Math.min(31.5, Math.max(0.5, u.z));
+  u.moving = moving;
+  const role = mode === 'attack' ? 'attack' : moving ? 'walk' : 'idle';
+  for (const p of u.parts) playRole(p, role);
+}
+function lerpAngle(a, b, t) {
+  let d = b - a;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  return a + d * t;
+}
+
+function syncUnit(u, t) {
+  const flying = u.cfg.flying;
+  const rootY = flying ? 1.8 + Math.sin(t * 4 + u.bob) * 0.12 : 0;
+  u.root.position.set(u.x, rootY, u.z);
+  u.root.rotation.y = u.yaw;
+  u.root.scale.setScalar(Math.max(0.01, u.grow));
+  u.root.visible = !spriteMode;
+  u.ring.position.set(u.x, 0.03, u.z);
+  u.ring.visible = !u.dead;
+  u.sprite.visible = spriteMode && !u.dead;
+  u.sprite.position.set(u.x, rootY + SPRITE[u.type].cy, u.z);
+  u.bar.visible = !u.dead && u.hp < u.maxHp;
+  u.bar.position.set(u.x, rootY + (u.cfg.barY || u.cfg.h + 0.35), u.z);
+}
+
+// ---------- main loop ----------
+let lastT = 0, frames = 0, fpsT0 = 0, fps = 0;
+const fpsEl = document.getElementById('fps');
+function step(dt, t) {
+  waterTex.offset.x = (t * 0.08) % 1;
+  for (const c of cannons) c.rotation.y += dt * 0.9;
+  for (const s of slots) if (!s.unit) { s.timer -= dt; if (s.timer <= 0) spawnSlot(s); }
+  for (const u of [...units]) { updateUnit(u, dt); for (const p of u.parts) p.mixer.update(dt); }
+  for (const u of units) syncUnit(u, t);
+  for (const tw of towers) {
+    if (tw.down) {
+      tw.downT -= dt;
+      if (tw.downT <= 0) { tw.down = false; tw.hp = tw.maxHp; tw.root.visible = true; }
+    }
+    tw.bar.visible = !tw.down && tw.hp < tw.maxHp;
+    tw.bar.position.set(tw.x, tw.barY, tw.z);
+    setBar(tw.bar, tw.hp / tw.maxHp);
+  }
+  // Bars and sprites face the camera.
+  for (const u of units) u.bar.quaternion.copy(camera.quaternion);
+  for (const tw of towers) tw.bar.quaternion.copy(camera.quaternion);
+  for (const u of units) u.sprite.quaternion.copy(camera.quaternion);
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  const t = now / 1000;
+  const dt = Math.min(0.05, lastT ? t - lastT : 0.016);
+  lastT = t;
+  step(dt, t);
+  renderer.render(scene, camera);
+  frames++;
+  if (t - fpsT0 >= 1) {
+    fps = Math.round(frames / (t - fpsT0));
+    frames = 0;
+    fpsT0 = t;
+    fpsEl.textContent = fps + ' fps';
+  }
+}
+
+// ---------- boot ----------
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  fitCamera();
+});
+document.getElementById('mode').addEventListener('click', e => {
+  spriteMode = !spriteMode;
+  e.currentTarget.textContent = spriteMode ? '3D' : 'Sprites';
+});
+
+async function boot() {
+  let n = 0;
+  const names = Object.keys(FILES);
+  setLoad(`Loading 0/${names.length}`);
+  try {
+    await Promise.all(names.map(async k => {
+      gltfs[k] = await gltfLoader.loadAsync(BASE + FILES[k]);
+      setLoad(`Loading ${++n}/${names.length}`);
+    }));
+  } catch (err) {
+    console.error(err);
+    setLoad('Model load failed: ' + (err && err.message ? err.message : err), true);
+    return;
+  }
+  buildTemplates();
+  placeArena();
+  bakeSprites();
+  fitCamera();
+  document.getElementById('load').remove();
+  document.getElementById('mode').disabled = false;
+  requestAnimationFrame(frame);
+}
+window.__preview = {
+  units: () => units.length,
+  towers: () => towers.length,
+  fps: () => fps,
+  mode: () => (spriteMode ? 'sprite' : '3d'),
+  models: () => Object.keys(gltfs).length,
+  tpl: (k) => {
+    const out = [];
+    TPL[k].traverse(o => {
+      if (!o.isMesh) return;
+      o.geometry.computeBoundingBox();
+      const wp = o.getWorldPosition(new THREE.Vector3());
+      out.push({ name: o.name, skinned: !!o.isSkinnedMesh, vis: o.visible, mat: o.material.type, geomBox: o.geometry.boundingBox.getSize(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)), worldPos: wp.toArray().map(v => +v.toFixed(2)), verts: o.geometry.attributes.position.count });
+    });
+    return { scale: TPL[k].children[0].scale.toArray().map(v => +v.toFixed(3)), pos: TPL[k].children[0].position.toArray().map(v => +v.toFixed(3)), meshes: out };
+  },
+  debug: () => units.map(u => {
+    const b = new THREE.Box3().setFromObject(u.root);
+    return { type: u.type, team: u.team, x: +u.x.toFixed(2), z: +u.z.toFixed(2), grow: +u.grow.toFixed(2),
+      rootVis: u.root.visible, spriteVis: u.sprite.visible, spriteSize: u.sprite.scale.x,
+      boxSize: b.getSize(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)), boxMin: b.min.toArray().map(v => +v.toFixed(2)),
+      parts: u.parts.length, act: u.parts[0].current ? u.parts[0].current.getClip().name : null };
+  }),
+  alive: () => ({ blue: units.filter(u => u.team === 'blue' && !u.dead).length, red: units.filter(u => u.team === 'red' && !u.dead).length }),
+};
+boot();
+</script>
+</body>
+</html>
