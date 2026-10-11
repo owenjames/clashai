@@ -1,0 +1,364 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1EAB33564DBEE353321F46AC /* ClashAIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F0025FD7C60C76BEC8C565 /* ClashAIApp.swift */; };
+		3969BDD3A36EC955EE23D5C4 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0F80B8E05B8FCF197BD00C /* GameView.swift */; };
+		50AD8136FF6BA95DE34A203A /* Web in Resources */ = {isa = PBXBuildFile; fileRef = A49F681AD202AFE4452F3602 /* Web */; };
+		DDE64324EA2A965EA0B32C30 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3C5435054F2D84E21D216637 /* Assets.xcassets */; };
+		F0D9F33F7631CE5D2511E39A /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBFE40FC944E175A63743DD /* Haptics.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3C5435054F2D84E21D216637 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		71F0025FD7C60C76BEC8C565 /* ClashAIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClashAIApp.swift; sourceTree = "<group>"; };
+		8FBFE40FC944E175A63743DD /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		9BCA67D203972FEADA3B516D /* ClashAI.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClashAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A49F681AD202AFE4452F3602 /* Web */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Web; path = ClashAI/Web; sourceTree = SOURCE_ROOT; };
+		FC0F80B8E05B8FCF197BD00C /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1984A3C5708A983BB450A96B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				71F0025FD7C60C76BEC8C565 /* ClashAIApp.swift */,
+				FC0F80B8E05B8FCF197BD00C /* GameView.swift */,
+				8FBFE40FC944E175A63743DD /* Haptics.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		584D16EA03BBDD5684FABCF4 /* ClashAI */ = {
+			isa = PBXGroup;
+			children = (
+				3C5435054F2D84E21D216637 /* Assets.xcassets */,
+				A49F681AD202AFE4452F3602 /* Web */,
+				1984A3C5708A983BB450A96B /* Sources */,
+			);
+			path = ClashAI;
+			sourceTree = "<group>";
+		};
+		D4A26FD7361A7AC1E1D40A8B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9BCA67D203972FEADA3B516D /* ClashAI.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E1F8F609EC21DDD17DD916ED = {
+			isa = PBXGroup;
+			children = (
+				584D16EA03BBDD5684FABCF4 /* ClashAI */,
+				D4A26FD7361A7AC1E1D40A8B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F85A756F21C70A8730A41BB4 /* ClashAI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C5906090A5639EE67978BA85 /* Build configuration list for PBXNativeTarget "ClashAI" */;
+			buildPhases = (
+				169C66CE21F8FC8C0E739661 /* Build web bundle */,
+				4392F0D3DCA73BE34DA9EB27 /* Sources */,
+				FF2565307E221925F3C73716 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ClashAI;
+			packageProductDependencies = (
+			);
+			productName = ClashAI;
+			productReference = 9BCA67D203972FEADA3B516D /* ClashAI.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F1C1E845415FD70C9F39C255 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					F85A756F21C70A8730A41BB4 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = E694164903C164B91A80A59A /* Build configuration list for PBXProject "ClashAI" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E1F8F609EC21DDD17DD916ED;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D4A26FD7361A7AC1E1D40A8B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F85A756F21C70A8730A41BB4 /* ClashAI */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		FF2565307E221925F3C73716 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DDE64324EA2A965EA0B32C30 /* Assets.xcassets in Resources */,
+				50AD8136FF6BA95DE34A203A /* Web in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		169C66CE21F8FC8C0E739661 /* Build web bundle */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build web bundle";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Rebuilds ClashAI/Web from js/ and index.html. Falls back to the committed files if node is missing.\nROOT=\"${PROJECT_DIR}/..\"\nNODE=\"\"\nfor d in $(echo \"$PATH\" | tr ':' ' ') /opt/homebrew/bin /usr/local/bin \"$HOME/.local/bin\"; do\n  if [ -x \"$d/node\" ]; then NODE=\"$d/node\"; break; fi\ndone\nif [ -z \"$NODE\" ]; then\n  echo \"warning: node not found, using the committed web files in ClashAI/Web\"\n  exit 0\nfi\ncd \"$ROOT\" && \"$NODE\" tools/build.js\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4392F0D3DCA73BE34DA9EB27 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1EAB33564DBEE353321F46AC /* ClashAIApp.swift in Sources */,
+				3969BDD3A36EC955EE23D5C4 /* GameView.swift in Sources */,
+				F0D9F33F7631CE5D2511E39A /* Haptics.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0598DEE85D4A9C1DF32127B1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		6BA7DAA091DE9EE447CBD996 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ClashAI/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.owenjames.clashai;
+				PRODUCT_NAME = ClashAI;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D9A899A20C13850F3E21C9D4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ClashAI/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.owenjames.clashai;
+				PRODUCT_NAME = ClashAI;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E07A19809B9E45D2038D8ECD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C5906090A5639EE67978BA85 /* Build configuration list for PBXNativeTarget "ClashAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D9A899A20C13850F3E21C9D4 /* Debug */,
+				6BA7DAA091DE9EE447CBD996 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E694164903C164B91A80A59A /* Build configuration list for PBXProject "ClashAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E07A19809B9E45D2038D8ECD /* Debug */,
+				0598DEE85D4A9C1DF32127B1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F1C1E845415FD70C9F39C255 /* Project object */;
+}

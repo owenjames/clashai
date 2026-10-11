@@ -1,0 +1,4582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ClashAI">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#173f8f">
+<meta name="format-detection" content="telephone=no">
+<title>ClashAI</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<style>
+:root {
+  --gold-hi: #ffe36b; --gold-lo: #f5a90f; --gold-sh: #a8650a;
+  --blue-hi: #5aa9ff; --blue-lo: #2b74e0; --blue-sh: #164b96;
+  --red-hi: #ff7a6e; --red-lo: #d72f28; --red-sh: #8c1714;
+  --green-hi: #8ee05a; --green-lo: #3fa823; --green-sh: #22660f;
+  --dark-hi: #2f63b4; --dark-lo: #17386f; --dark-sh: #0b2149;
+  --panel-hi: #1f56a8; --panel-lo: #123a7a; --panel-edge: #0a2358;
+  --r-common: #8ea6c4; --r-rare: #f39a2d; --r-epic: #b054f0;
+}
+html, body {
+  height: 100%; margin: 0; overflow: hidden;
+  background: #0b1a3a; color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Helvetica Neue", Arial, sans-serif;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; overscroll-behavior: none;
+}
+button { font: inherit; -webkit-tap-highlight-color: transparent; }
+#game {
+  position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+  display: none; touch-action: none; z-index: 0;
+}
+body.in-battle #game { display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+.screen {
+  position: absolute; inset: 0; display: none; flex-direction: column; gap: 12px;
+  box-sizing: border-box; overflow: hidden; pointer-events: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) calc(env(safe-area-inset-right, 0px) + 14px)
+           calc(env(safe-area-inset-bottom, 0px) + 14px) calc(env(safe-area-inset-left, 0px) + 14px);
+  background: radial-gradient(120% 55% at 50% 0%, #55b4ff 0%, #1d6bd0 42%, #0d2f72 80%, #0a2255 100%);
+}
+.screen.on { display: flex; }
+.hud { background: none; padding: 0; pointer-events: none; }
+.hud.on { display: block; }
+.hud .hudbtn, .hud .overlay { pointer-events: auto; }
+#probe {
+  position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* Buttons: chunky, rounded, bottom shadow that compresses on press. */
+.btn {
+  display: block; width: 100%; box-sizing: border-box; border: 0; cursor: pointer;
+  border-radius: 16px; padding: 13px 18px; color: #fff; font-weight: 900; font-size: 18px;
+  letter-spacing: .4px; text-shadow: 0 2px 0 rgba(0,0,0,.25);
+  background: linear-gradient(var(--blue-hi), var(--blue-lo));
+  box-shadow: 0 6px 0 var(--blue-sh), 0 10px 16px rgba(0,0,0,.3);
+  transition: transform .05s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--blue-sh); }
+.btn.gold {
+  background: linear-gradient(var(--gold-hi), var(--gold-lo)); color: #4a2a00;
+  text-shadow: 0 1px 0 rgba(255,255,255,.45);
+  box-shadow: 0 7px 0 var(--gold-sh), 0 10px 18px rgba(0,0,0,.35);
+}
+.btn.gold:active { box-shadow: 0 2px 0 var(--gold-sh); }
+.btn.red { background: linear-gradient(var(--red-hi), var(--red-lo)); box-shadow: 0 6px 0 var(--red-sh), 0 10px 16px rgba(0,0,0,.3); }
+.btn.red:active { box-shadow: 0 2px 0 var(--red-sh); }
+.btn.green { background: linear-gradient(var(--green-hi), var(--green-lo)); box-shadow: 0 6px 0 var(--green-sh), 0 10px 16px rgba(0,0,0,.3); }
+.btn.dark { background: linear-gradient(var(--dark-hi), var(--dark-lo)); box-shadow: 0 6px 0 var(--dark-sh), 0 10px 16px rgba(0,0,0,.3); }
+.btn.dark:active { box-shadow: 0 2px 0 var(--dark-sh); }
+.btn.sm { display: inline-block; width: auto; font-size: 15px; padding: 9px 14px; border-radius: 12px; box-shadow: 0 4px 0 var(--dark-sh); }
+.btn.sm:active { box-shadow: 0 1px 0 var(--dark-sh); }
+.btn.xl { font-size: 28px; padding: 18px; border-radius: 20px; }
+
+.panel {
+  background: linear-gradient(var(--panel-hi), var(--panel-lo));
+  border: 3px solid var(--panel-edge); border-radius: 18px;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.18), 0 8px 20px rgba(0,0,0,.3);
+  box-sizing: border-box;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border-radius: 999px; background: rgba(0,0,0,.28); font-weight: 800; font-size: 15px;
+}
+.pill b { color: var(--gold-hi); font-weight: 900; }
+.iconbtn {
+  width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; color: #fff;
+  background: rgba(0,0,0,.28); font-size: 20px; box-shadow: 0 3px 0 rgba(0,0,0,.3);
+}
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Home */
+#home .logo {
+  margin: 4px 0 0; text-align: center; font-size: 56px; font-weight: 900; letter-spacing: 1px;
+  color: var(--gold-hi);
+  text-shadow: 0 4px 0 #8a4b00, 0 8px 0 #5e3200, 0 14px 20px rgba(0,0,0,.4);
+}
+.rec { display: flex; justify-content: center; gap: 14px; font-size: 14px; font-weight: 700; opacity: .92; }
+.rec b { color: var(--gold-hi); font-weight: 900; }
+.decks { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.minis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.avgline { text-align: center; font-size: 14px; font-weight: 700; }
+.avgline b { color: var(--gold-hi); font-weight: 900; }
+.spacer { flex: 1; min-height: 4px; }
+.seg {
+  display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(0,0,0,.3);
+}
+.seg button {
+  flex: 1; border: 0; border-radius: 10px; padding: 10px 4px; background: transparent;
+  color: #cfe3ff; font-weight: 800; font-size: 15px;
+}
+.seg button.on { background: linear-gradient(var(--gold-hi), var(--gold-lo)); color: #4a2a00; box-shadow: 0 3px 0 var(--gold-sh); }
+#home .btn + .btn { margin-top: 0; }
+
+/* Card tiles */
+.tile {
+  position: relative; box-sizing: border-box; min-width: 0; aspect-ratio: 0.8;
+  border-radius: 12px; padding: 3px; background: var(--rc, var(--r-common));
+  box-shadow: 0 3px 0 rgba(0,0,0,.35); cursor: pointer;
+}
+.tile.r-common { --rc: var(--r-common); }
+.tile.r-rare { --rc: var(--r-rare); }
+.tile.r-epic { --rc: var(--r-epic); }
+.tile.r-legendary { background: conic-gradient(#ff5d6c, #ffd84d, #7dff6a, #5ce1ff, #8a6cff, #ff6ad5, #ff5d6c); }
+.tin {
+  position: absolute; inset: 3px; border-radius: 9px; overflow: hidden; padding: 2px;
+  background: linear-gradient(#2f70c8, #14407f);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.emo { font-size: 26px; line-height: 1; }
+.tn {
+  max-width: 100%; padding: 0 3px; font-size: 10px; font-weight: 800;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.drop {
+  position: absolute; top: -5px; left: -5px; z-index: 1; box-sizing: border-box;
+  min-width: 22px; height: 22px; padding: 0 4px; border-radius: 11px;
+  background: radial-gradient(circle at 35% 30%, #f5b6ff, #b02fe0 70%);
+  border: 2px solid #fff; color: #fff; font-weight: 900; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 0 rgba(0,0,0,.35);
+}
+.tile.mini { aspect-ratio: auto; height: 62px; }
+.tile.mini .emo { font-size: 22px; }
+.tile.mini .drop { min-width: 18px; height: 18px; font-size: 10px; top: -4px; left: -4px; }
+.tile.sel { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--gold-hi), 0 3px 0 rgba(0,0,0,.35); }
+.tile.used .tin { opacity: .5; }
+
+/* Deck builder */
+#deck .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#deck h2 { margin: 0; font-size: 22px; font-weight: 900; }
+.dslots { padding: 8px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dslots .tile { cursor: pointer; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px 6px 16px; }
+.overlay {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  padding: 20px; box-sizing: border-box; z-index: 5; background: rgba(4,12,34,.62);
+}
+.overlay.open { display: flex; }
+.sheet {
+  width: 100%; max-width: 360px; max-height: 100%; overflow-y: auto;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.sh { display: flex; gap: 12px; align-items: center; }
+.emo.big { font-size: 48px; }
+.sh h3 { margin: 0; font-size: 20px; font-weight: 900; }
+.sub { font-size: 13px; opacity: .8; margin-top: 2px; }
+.stats { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stats > div {
+  display: flex; justify-content: space-between; gap: 6px; padding: 6px 8px;
+  border-radius: 10px; background: rgba(0,0,0,.22);
+}
+.stats dt { font-size: 13px; opacity: .75; }
+.stats dd { margin: 0; font-size: 13px; font-weight: 900; text-align: right; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span {
+  padding: 4px 10px; border-radius: 999px; background: #0c2a63;
+  border: 2px solid #3f78cf; font-size: 12px; font-weight: 700;
+}
+
+/* Result */
+#result .res {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; text-align: center;
+}
+.rtitle { margin: 0; font-size: 56px; font-weight: 900; text-shadow: 0 5px 0 rgba(0,0,0,.35); }
+.res.win .rtitle { color: var(--gold-hi); }
+.res.loss .rtitle { color: var(--red-hi); }
+.res.draw .rtitle { color: #cfe3ff; }
+.crowns { display: flex; gap: 28px; align-items: center; }
+.side { display: flex; gap: 6px; }
+.crown { width: 40px; height: 34px; }
+.crown path { fill: var(--c); stroke: rgba(0,0,0,.35); stroke-width: .8; }
+.crown.off { opacity: .22; }
+.trophy { display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 900; }
+.trophy b { color: var(--gold-hi); }
+.delta { font-size: 16px; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.3); }
+.delta.up { color: var(--green-hi); }
+.delta.down { color: var(--red-hi); }
+.why { margin: 0; font-size: 15px; font-weight: 700; opacity: .85; }
+#result .btn { max-width: 260px; }
+
+/* Battle HUD */
+.hudbtn {
+  position: absolute; top: calc(env(safe-area-inset-top, 0px) + 6px); left: calc(env(safe-area-inset-left, 0px) + 6px);
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(10,30,70,.72); box-shadow: 0 3px 0 rgba(0,0,0,.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.hudbtn svg { width: 14px; height: 14px; fill: #fff; }
+.cd {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  font-size: 128px; font-weight: 900; color: #fff; text-shadow: 0 8px 0 rgba(0,0,0,.35);
+  pointer-events: none;
+}
+.cd.on { display: flex; }
+.cd.pop { animation: pop .9s ease-out; }
+@keyframes pop {
+  0% { transform: scale(1.6); opacity: 0; }
+  25% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(.9); opacity: 0; }
+}
+.pmenu { width: min(280px, 80%); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Battle"></canvas>
+<div id="ui">
+  <section class="screen" id="home"></section>
+  <section class="screen" id="deck"></section>
+  <section class="screen" id="result"></section>
+  <section class="screen hud" id="hud"></section>
+</div>
+<div id="probe"></div>
+<script>
+// Card and unit data. Stats approximate Clash Royale tournament standard (level 11).
+// Distances are in tiles, times in seconds, speeds in tiles/second.
+// Speed tiers: slow 0.75, medium 1.0, fast 1.5, very fast 2.0.
+var CR = (globalThis.CR = globalThis.CR || {});
+
+CR.ARENA = {
+  W: 18,
+  H: 32,
+  RIVER_TOP: 15, // river occupies y in [15, 17]
+  RIVER_BOTTOM: 17,
+  BRIDGES: [
+    { x: 3.5, halfWidth: 1.5 },
+    { x: 14.5, halfWidth: 1.5 },
+  ],
+};
+
+// Tower layout for team 0 (bottom). Team 1 mirrors with y' = 32 - y.
+CR.TOWERS = {
+  princess: { hp: 3052, damage: 109, hitSpeed: 0.8, range: 7.5, r: 1.5, size: 3, projectile: { speed: 14, kind: 'arrow' } },
+  king: { hp: 4824, damage: 109, hitSpeed: 1.0, range: 7.0, r: 2.0, size: 4, projectile: { speed: 12, kind: 'cannonball' } },
+  layout: [
+    { type: 'princess', lane: 0, x: 3.5, y: 25.5 },
+    { type: 'princess', lane: 1, x: 14.5, y: 25.5 },
+    { type: 'king', lane: -1, x: 9, y: 29 },
+  ],
+};
+
+CR.ELIXIR = {
+  start: 5,
+  max: 10,
+  regen: 2.8, // seconds per elixir at 1x
+};
+
+CR.MATCH = {
+  regulation: 180,
+  doubleAt: 60, // seconds remaining in regulation when 2x starts
+  overtime: 120, // sudden death, 2x for first 60s, 3x for last 60s
+};
+
+// kind: 'troop' | 'building'
+// targets: 'ground' | 'both' | 'buildings'
+// range is edge-to-edge (distance between centers minus both radii).
+// loadTime: delay before the first hit after locking onto a target (also used after stun reset).
+// Optional specials:
+//   splash: radius of area damage around the impact point
+//   splashAroundSelf: true -> splash centred on the attacker (Valkyrie)
+//   projectile: { speed, kind } -> ranged; damage applies on arrival
+//   charge: { dist, damageMult, speed } -> after moving dist tiles uninterrupted, next hit deals damageMult and moves at speed
+//   jumpsRiver: ground unit that ignores the river (Hog Rider)
+//   deathDamage: { damage, radius }
+//   deathSpawn: { unit, count }
+//   spawn: { unit, count, interval, first } -> periodic spawner (Witch, Tombstone, Goblin Hut)
+//   ramp: { stages: [dmgPerHit...], stageTime } -> Inferno: damage per hit increases while locked on
+//   kamikaze: { freeze } -> unit dies when it attacks, splash applies freeze seconds (Ice Spirit)
+//   lifetime: building decay time; hp drains linearly to 0 over lifetime
+CR.UNITS = {
+  knight: { name: 'Knight', kind: 'troop', hp: 1766, damage: 202, hitSpeed: 1.2, loadTime: 0.7, range: 0.8, sight: 5.5, speed: 1.0, targets: 'ground', r: 0.5, mass: 6 },
+  archer: { name: 'Archer', kind: 'troop', hp: 304, damage: 107, hitSpeed: 0.9, loadTime: 0.4, range: 5, sight: 5.5, speed: 1.0, targets: 'both', r: 0.4, mass: 3, projectile: { speed: 10, kind: 'arrow' } },
+  giant: { name: 'Giant', kind: 'troop', hp: 4091, damage: 254, hitSpeed: 1.5, loadTime: 1.0, range: 0.8, sight: 7.5, speed: 0.75, targets: 'buildings', r: 0.75, mass: 18 },
+  musketeer: { name: 'Musketeer', kind: 'troop', hp: 720, damage: 217, hitSpeed: 1.0, loadTime: 0.5, range: 6, sight: 6, speed: 1.0, targets: 'both', r: 0.45, mass: 5, projectile: { speed: 12, kind: 'bullet' } },
+  minipekka: { name: 'Mini P.E.K.K.A', kind: 'troop', hp: 1361, damage: 720, hitSpeed: 1.6, loadTime: 0.5, range: 0.8, sight: 5.5, speed: 1.5, targets: 'ground', r: 0.5, mass: 4 },
+  goblin: { name: 'Goblin', kind: 'troop', hp: 202, damage: 120, hitSpeed: 1.1, loadTime: 0.4, range: 0.5, sight: 5.5, speed: 2.0, targets: 'ground', r: 0.35, mass: 2 },
+  speargoblin: { name: 'Spear Goblin', kind: 'troop', hp: 133, damage: 81, hitSpeed: 1.7, loadTime: 0.5, range: 5, sight: 5.5, speed: 2.0, targets: 'both', r: 0.35, mass: 2, projectile: { speed: 10, kind: 'spear' } },
+  skeleton: { name: 'Skeleton', kind: 'troop', hp: 81, damage: 81, hitSpeed: 1.0, loadTime: 0.5, range: 0.5, sight: 5.5, speed: 1.5, targets: 'ground', r: 0.3, mass: 1 },
+  babydragon: { name: 'Baby Dragon', kind: 'troop', air: true, hp: 1152, damage: 161, hitSpeed: 1.5, loadTime: 0.5, range: 3.5, sight: 5.5, speed: 1.5, targets: 'both', r: 0.6, mass: 5, splash: 1.5, projectile: { speed: 8, kind: 'fire' } },
+  hogrider: { name: 'Hog Rider', kind: 'troop', hp: 1696, damage: 318, hitSpeed: 1.6, loadTime: 0.6, range: 0.8, sight: 9.5, speed: 2.0, targets: 'buildings', r: 0.6, mass: 8, jumpsRiver: true },
+  valkyrie: { name: 'Valkyrie', kind: 'troop', hp: 1907, damage: 267, hitSpeed: 1.5, loadTime: 0.6, range: 0.8, sight: 5.5, speed: 1.0, targets: 'ground', r: 0.5, mass: 8, splash: 2.0, splashAroundSelf: true },
+  wizard: { name: 'Wizard', kind: 'troop', hp: 755, damage: 281, hitSpeed: 1.4, loadTime: 0.6, range: 5.5, sight: 5.5, speed: 1.0, targets: 'both', r: 0.45, mass: 5, splash: 1.5, projectile: { speed: 10, kind: 'fire' } },
+  minion: { name: 'Minion', kind: 'troop', air: true, hp: 230, damage: 107, hitSpeed: 1.0, loadTime: 0.5, range: 1.6, sight: 5.5, speed: 1.5, targets: 'both', r: 0.35, mass: 2, projectile: { speed: 12, kind: 'goo' } },
+  prince: { name: 'Prince', kind: 'troop', hp: 1920, damage: 392, hitSpeed: 1.4, loadTime: 0.9, range: 1.6, sight: 5.5, speed: 1.0, targets: 'ground', r: 0.6, mass: 15, charge: { dist: 2.5, damageMult: 2, speed: 2.0 } },
+  balloon: { name: 'Balloon', kind: 'troop', air: true, hp: 1679, damage: 640, hitSpeed: 2.0, loadTime: 1.0, range: 0.1, sight: 7.7, speed: 1.0, targets: 'buildings', r: 0.6, mass: 9, deathDamage: { damage: 272, radius: 3 } },
+  bomber: { name: 'Bomber', kind: 'troop', hp: 304, damage: 225, hitSpeed: 1.8, loadTime: 0.6, range: 4.5, sight: 5.5, speed: 1.0, targets: 'ground', r: 0.4, mass: 3, splash: 1.5, projectile: { speed: 8, kind: 'bomb' } },
+  pekka: { name: 'P.E.K.K.A', kind: 'troop', hp: 3760, damage: 816, hitSpeed: 1.8, loadTime: 0.7, range: 0.8, sight: 5, speed: 0.75, targets: 'ground', r: 0.65, mass: 18 },
+  icespirit: { name: 'Ice Spirit', kind: 'troop', hp: 230, damage: 110, hitSpeed: 0.3, loadTime: 0.1, range: 2.5, sight: 5.5, speed: 2.0, targets: 'both', r: 0.35, mass: 1, splash: 1.5, kamikaze: { freeze: 1.2 }, projectile: { speed: 8, kind: 'ice' } },
+  witch: { name: 'Witch', kind: 'troop', hp: 838, damage: 134, hitSpeed: 1.1, loadTime: 0.5, range: 5.5, sight: 5.5, speed: 1.0, targets: 'both', r: 0.45, mass: 5, splash: 1.0, projectile: { speed: 10, kind: 'magic' }, spawn: { unit: 'skeleton', count: 4, interval: 7, first: 1 } },
+  golem: { name: 'Golem', kind: 'troop', hp: 5120, damage: 312, hitSpeed: 2.5, loadTime: 1.0, range: 0.8, sight: 7, speed: 0.75, targets: 'buildings', r: 0.8, mass: 20, deathDamage: { damage: 312, radius: 2 }, deathSpawn: { unit: 'golemite', count: 2 } },
+  golemite: { name: 'Golemite', kind: 'troop', hp: 1040, damage: 63, hitSpeed: 2.5, loadTime: 1.0, range: 0.8, sight: 7, speed: 0.75, targets: 'buildings', r: 0.5, mass: 6, deathDamage: { damage: 63, radius: 2 } },
+  barbarian: { name: 'Barbarian', kind: 'troop', hp: 670, damage: 192, hitSpeed: 1.4, loadTime: 0.6, range: 0.8, sight: 5.5, speed: 1.0, targets: 'ground', r: 0.45, mass: 5 },
+  bat: { name: 'Bat', kind: 'troop', air: true, hp: 81, damage: 81, hitSpeed: 1.3, loadTime: 0.4, range: 1.2, sight: 5.5, speed: 2.0, targets: 'both', r: 0.3, mass: 1 },
+  royalgiant: { name: 'Royal Giant', kind: 'troop', hp: 3164, damage: 307, hitSpeed: 1.7, loadTime: 0.8, range: 5, sight: 7.5, speed: 0.75, targets: 'buildings', r: 0.75, mass: 18, projectile: { speed: 14, kind: 'cannonball' } },
+
+  cannon: { name: 'Cannon', kind: 'building', hp: 824, damage: 212, hitSpeed: 0.9, loadTime: 0.4, range: 5.5, sight: 5.5, speed: 0, targets: 'ground', r: 1.0, mass: 0, lifetime: 30, projectile: { speed: 14, kind: 'cannonball' } },
+  infernotower: { name: 'Inferno Tower', kind: 'building', hp: 1749, damage: 35, hitSpeed: 0.4, loadTime: 0.4, range: 6, sight: 6, speed: 0, targets: 'both', r: 1.0, mass: 0, lifetime: 30, ramp: { stages: [35, 127, 422], stageTime: 2 } },
+  tombstone: { name: 'Tombstone', kind: 'building', hp: 534, damage: 0, hitSpeed: 0, loadTime: 0, range: 0, sight: 0, speed: 0, targets: 'none', r: 0.9, mass: 0, lifetime: 30, spawn: { unit: 'skeleton', count: 2, interval: 3.5, first: 1 }, deathSpawn: { unit: 'skeleton', count: 4 } },
+  goblinhut: { name: 'Goblin Hut', kind: 'building', hp: 1100, damage: 0, hitSpeed: 0, loadTime: 0, range: 0, sight: 0, speed: 0, targets: 'none', r: 1.2, mass: 0, lifetime: 29, spawn: { unit: 'speargoblin', count: 1, interval: 4.7, first: 1 } },
+};
+
+// type: 'troop' | 'building' | 'spell'
+// troop/building cards: unit id + count (formation is the engine's job).
+// spell fields:
+//   radius, damage, towerDamage (crown towers take reduced spell damage)
+//   travelSpeed: flies from the caster's King Tower at this speed (0 = instant)
+//   stun: seconds, resets attacks and inferno ramp
+//   freeze: seconds, unit fully stops (no move, no attack)
+//   knockback: tiles pushed away from the centre (ground, non-building, mass < 15)
+//   duration + dps + towerDps + slow: lingering area (Poison)
+//   log: { length, width, speed } rolls toward the enemy side, ground only
+//   spawnUnit + spawnCount: lands units at the target (Goblin Barrel)
+CR.CARDS = {
+  knight: { name: 'Knight', cost: 3, type: 'troop', unit: 'knight', count: 1, emoji: '🤺', rarity: 'common' },
+  archers: { name: 'Archers', cost: 3, type: 'troop', unit: 'archer', count: 2, emoji: '🏹', rarity: 'common' },
+  giant: { name: 'Giant', cost: 5, type: 'troop', unit: 'giant', count: 1, emoji: '🗿', rarity: 'rare' },
+  musketeer: { name: 'Musketeer', cost: 4, type: 'troop', unit: 'musketeer', count: 1, emoji: '💂', rarity: 'rare' },
+  minipekka: { name: 'Mini P.E.K.K.A', cost: 4, type: 'troop', unit: 'minipekka', count: 1, emoji: '🤖', rarity: 'rare' },
+  goblins: { name: 'Goblins', cost: 2, type: 'troop', unit: 'goblin', count: 3, emoji: '👺', rarity: 'common' },
+  speargoblins: { name: 'Spear Goblins', cost: 2, type: 'troop', unit: 'speargoblin', count: 3, emoji: '🔱', rarity: 'common' },
+  skeletonarmy: { name: 'Skeleton Army', cost: 3, type: 'troop', unit: 'skeleton', count: 15, emoji: '💀', rarity: 'epic' },
+  skeletons: { name: 'Skeletons', cost: 1, type: 'troop', unit: 'skeleton', count: 3, emoji: '☠️', rarity: 'common' },
+  babydragon: { name: 'Baby Dragon', cost: 4, type: 'troop', unit: 'babydragon', count: 1, emoji: '🐲', rarity: 'epic' },
+  hogrider: { name: 'Hog Rider', cost: 4, type: 'troop', unit: 'hogrider', count: 1, emoji: '🐗', rarity: 'rare' },
+  valkyrie: { name: 'Valkyrie', cost: 4, type: 'troop', unit: 'valkyrie', count: 1, emoji: '🪓', rarity: 'rare' },
+  wizard: { name: 'Wizard', cost: 5, type: 'troop', unit: 'wizard', count: 1, emoji: '🧙', rarity: 'rare' },
+  minions: { name: 'Minions', cost: 3, type: 'troop', unit: 'minion', count: 3, emoji: '👿', rarity: 'common' },
+  prince: { name: 'Prince', cost: 5, type: 'troop', unit: 'prince', count: 1, emoji: '🏇', rarity: 'epic' },
+  balloon: { name: 'Balloon', cost: 5, type: 'troop', unit: 'balloon', count: 1, emoji: '🎈', rarity: 'epic' },
+  bomber: { name: 'Bomber', cost: 2, type: 'troop', unit: 'bomber', count: 1, emoji: '💣', rarity: 'common' },
+  pekka: { name: 'P.E.K.K.A', cost: 7, type: 'troop', unit: 'pekka', count: 1, emoji: '🦾', rarity: 'epic' },
+  icespirit: { name: 'Ice Spirit', cost: 1, type: 'troop', unit: 'icespirit', count: 1, emoji: '❄️', rarity: 'common' },
+  witch: { name: 'Witch', cost: 5, type: 'troop', unit: 'witch', count: 1, emoji: '🧙‍♀️', rarity: 'epic' },
+  golem: { name: 'Golem', cost: 8, type: 'troop', unit: 'golem', count: 1, emoji: '🪨', rarity: 'epic' },
+  barbarians: { name: 'Barbarians', cost: 5, type: 'troop', unit: 'barbarian', count: 5, emoji: '🧔', rarity: 'common' },
+  bats: { name: 'Bats', cost: 2, type: 'troop', unit: 'bat', count: 5, emoji: '🦇', rarity: 'common' },
+  royalgiant: { name: 'Royal Giant', cost: 6, type: 'troop', unit: 'royalgiant', count: 1, emoji: '🧌', rarity: 'common' },
+
+  cannon: { name: 'Cannon', cost: 3, type: 'building', unit: 'cannon', count: 1, emoji: '🛡️', rarity: 'common' },
+  infernotower: { name: 'Inferno Tower', cost: 5, type: 'building', unit: 'infernotower', count: 1, emoji: '🔥', rarity: 'rare' },
+  tombstone: { name: 'Tombstone', cost: 3, type: 'building', unit: 'tombstone', count: 1, emoji: '🪦', rarity: 'rare' },
+  goblinhut: { name: 'Goblin Hut', cost: 5, type: 'building', unit: 'goblinhut', count: 1, emoji: '🛖', rarity: 'rare' },
+
+  arrows: { name: 'Arrows', cost: 3, type: 'spell', emoji: '🎯', rarity: 'common', radius: 4, damage: 366, towerDamage: 93, travelSpeed: 14 },
+  fireball: { name: 'Fireball', cost: 4, type: 'spell', emoji: '☄️', rarity: 'rare', radius: 2.5, damage: 689, towerDamage: 207, travelSpeed: 10, knockback: 1.0 },
+  zap: { name: 'Zap', cost: 2, type: 'spell', emoji: '⚡', rarity: 'common', radius: 2.5, damage: 192, towerDamage: 58, travelSpeed: 0, stun: 0.5 },
+  rocket: { name: 'Rocket', cost: 6, type: 'spell', emoji: '🚀', rarity: 'rare', radius: 2, damage: 1484, towerDamage: 445, travelSpeed: 6, knockback: 1.5 },
+  log: { name: 'The Log', cost: 2, type: 'spell', emoji: '🪵', rarity: 'legendary', damage: 290, towerDamage: 58, knockback: 0.7, log: { length: 11.1, width: 3.9, speed: 4.6 } },
+  poison: { name: 'Poison', cost: 4, type: 'spell', emoji: '☠', rarity: 'epic', radius: 3.5, duration: 8, dps: 91, towerDps: 27, slow: 0.15, travelSpeed: 0 },
+  freeze: { name: 'Freeze', cost: 4, type: 'spell', emoji: '🧊', rarity: 'epic', radius: 3, damage: 115, towerDamage: 35, freeze: 4, travelSpeed: 0 },
+  goblinbarrel: { name: 'Goblin Barrel', cost: 3, type: 'spell', emoji: '🛢️', rarity: 'epic', radius: 1.5, damage: 0, towerDamage: 0, travelSpeed: 6, spawnUnit: 'goblin', spawnCount: 3 },
+};
+
+CR.DEFAULT_DECK = ['knight', 'archers', 'giant', 'musketeer', 'minipekka', 'fireball', 'zap', 'babydragon'];
+
+// Decks the AI picks from at random.
+CR.AI_DECKS = [
+  ['giant', 'musketeer', 'minipekka', 'archers', 'fireball', 'zap', 'knight', 'skeletons'],
+  ['hogrider', 'valkyrie', 'musketeer', 'cannon', 'icespirit', 'log', 'fireball', 'skeletons'],
+  ['golem', 'babydragon', 'witch', 'minions', 'zap', 'poison', 'bomber', 'tombstone'],
+  ['pekka', 'prince', 'wizard', 'bats', 'arrows', 'zap', 'goblins', 'infernotower'],
+  ['balloon', 'babydragon', 'minions', 'freeze', 'arrows', 'knight', 'speargoblins', 'icespirit'],
+  ['royalgiant', 'barbarians', 'goblinhut', 'archers', 'rocket', 'zap', 'skeletonarmy', 'goblinbarrel'],
+];
+
+CR.TEAM_COLORS = [
+  { main: '#2f7cf6', dark: '#1a4fa8', light: '#9cc3ff' },
+  { main: '#e5413b', dark: '#9c1f1b', light: '#ffaaa6' },
+];
+
+if (typeof module !== 'undefined') module.exports = CR;
+
+</script>
+<script>
+var CR = (globalThis.CR = globalThis.CR || {});
+
+// Deterministic battle simulation. All randomness comes from the game's seeded mulberry32 stream.
+(function () {
+  'use strict';
+
+  // Under Node, pull in the card data when it was not loaded first.
+  if (!CR.ARENA && typeof require === 'function') require('./cards.js');
+
+  var ARENA = CR.ARENA;
+  var TOWERS = CR.TOWERS;
+  var ELIXIR = CR.ELIXIR;
+  var MATCH = CR.MATCH;
+  var UNITS = CR.UNITS;
+  var CARDS = CR.CARDS;
+
+  var W = ARENA.W;
+  var H = ARENA.H;
+  var RIVER_TOP = ARENA.RIVER_TOP;
+  var RIVER_BOTTOM = ARENA.RIVER_BOTTOM;
+  var BANK_BOTTOM = RIVER_BOTTOM + 0.5; // bridge entrance on the team 0 side
+  var BANK_TOP = RIVER_TOP - 0.5; // bridge entrance on the team 1 side
+  var LANE_SPLIT = 9;
+  var POCKET_REACH = 4; // tiles past the river that a pocket extends
+  var SPAWN_FRONT = 1.2; // spawners drop units this far toward the enemy
+  var RETARGET_EVERY = 0.2;
+  var LOCK_BREAK = 0.5; // a locked unit re-targets once the target is this far out of range
+  var POISON_SLOW_TIME = 0.25;
+  var EPS = 1e-9;
+  var EFFECT_FOR_CARD = {
+    arrows: 'arrows',
+    fireball: 'fireball',
+    zap: 'zap',
+    rocket: 'rocket',
+    freeze: 'freeze',
+    poison: 'poison',
+    log: 'splash',
+    goblinbarrel: 'spawn',
+  };
+
+  function mulberry32(seed) {
+    var a = seed | 0;
+    return function () {
+      var t = (a = (a + 0x6d2b79f5) | 0);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : v > hi ? hi : v;
+  }
+
+  function dist(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  // Edge-to-edge gap between two circles.
+  function edgeDist(a, b) {
+    return dist(a, b) - a.r - b.r;
+  }
+
+  function isNum(v) {
+    return typeof v === 'number' && isFinite(v);
+  }
+
+  function isRiverY(y) {
+    return y > RIVER_TOP && y < RIVER_BOTTOM;
+  }
+
+  // 0 = bottom half (team 0 side), 1 = top half (team 1 side).
+  function sideOf(y) {
+    return y < (RIVER_TOP + RIVER_BOTTOM) / 2 ? 1 : 0;
+  }
+
+  function nearestBridge(x) {
+    var best = ARENA.BRIDGES[0];
+    for (var i = 1; i < ARENA.BRIDGES.length; i++) {
+      if (Math.abs(x - ARENA.BRIDGES[i].x) < Math.abs(x - best.x)) best = ARENA.BRIDGES[i];
+    }
+    return best;
+  }
+
+  function towerLayoutPos(team, entry) {
+    return { x: entry.x, y: team === 0 ? entry.y : H - entry.y };
+  }
+
+  function kingPos(team) {
+    var L = TOWERS.layout;
+    for (var i = 0; i < L.length; i++) {
+      if (L[i].type === 'king') return towerLayoutPos(team, L[i]);
+    }
+    return { x: W / 2, y: team === 0 ? H - 3 : 3 };
+  }
+
+  // Offsets for a multi-unit drop. Ring sizes keep 15 skeletons compact.
+  function formationOffsets(count) {
+    var out = [];
+    var i;
+    if (count === 1) return [[0, 0]];
+    if (count === 2) return [[-0.5, 0], [0.5, 0]];
+    if (count === 3) return [[-0.6, 0.35], [0.6, 0.35], [0, -0.45]];
+    if (count <= 5) {
+      for (i = 0; i < count; i++) {
+        var a = -Math.PI / 2 + (i * 2 * Math.PI) / count;
+        out.push([0.8 * Math.cos(a), 0.8 * Math.sin(a)]);
+      }
+      return out;
+    }
+    for (i = 0; i < count; i++) {
+      var ring = Math.floor(i / 6);
+      var k = i % 6;
+      var n = Math.min(6, count - ring * 6);
+      var ang = (k * 2 * Math.PI) / n + ring * 0.5;
+      var rad = 0.6 + 0.8 * ring;
+      out.push([rad * Math.cos(ang), rad * Math.sin(ang)]);
+    }
+    return out;
+  }
+
+  function towerDef(type) {
+    var s = TOWERS[type];
+    if (!s) throw new Error('Unknown tower: ' + type);
+    return Object.assign({}, s, {
+      kind: 'tower',
+      targets: 'both',
+      speed: 0,
+      mass: 0,
+      loadTime: 0,
+      sight: s.range,
+      air: false,
+    });
+  }
+
+  function makeEntity(game, o) {
+    var def = o.def;
+    return {
+      id: game.nextId++,
+      team: o.team,
+      kind: o.kind,
+      unitId: o.unitId,
+      cardId: o.cardId || null,
+      towerType: o.towerType || null,
+      lane: o.lane === undefined ? -1 : o.lane,
+      x: o.x,
+      y: o.y,
+      r: def.r,
+      air: !!def.air,
+      size: def.size || 0,
+      hp: def.hp,
+      maxHp: def.hp,
+      deployT: o.deployT || 0,
+      active: o.active !== false,
+      target: null,
+      attackCooldown: 0,
+      lastAttackT: -1e9,
+      facing: o.team === 0 ? -Math.PI / 2 : Math.PI / 2,
+      stunT: 0,
+      freezeT: 0,
+      slowT: 0,
+      slowAmount: 0,
+      charging: false,
+      rampStage: 0,
+      beamTarget: null,
+      dead: false,
+      def: def,
+      range: def.range || 0,
+      sight: def.sight || 0,
+      locked: false,
+      retargetT: 0,
+      chargeDist: 0,
+      rampT: 0,
+      bridgeX: null,
+      spawnTimer: def.spawn ? def.spawn.first : 0,
+    };
+  }
+
+  function arenaClamp(e) {
+    e.x = clamp(e.x, e.r, W - e.r);
+    e.y = clamp(e.y, e.r, H - e.r);
+  }
+
+  // Ground troops never rest in river water unless they are on a bridge.
+  function riverClamp(e) {
+    if (e.kind !== 'troop' || e.air || e.def.jumpsRiver) return;
+    if (!isRiverY(e.y)) return;
+    var br = nearestBridge(e.x);
+    if (Math.abs(e.x - br.x) <= br.halfWidth) return;
+    e.y = e.y - RIVER_TOP < RIVER_BOTTOM - e.y ? RIVER_TOP - 0.05 : RIVER_BOTTOM + 0.05;
+  }
+
+  function spawnUnit(game, team, unitId, x, y, cardId) {
+    var def = UNITS[unitId];
+    if (!def) throw new Error('Unknown unit: ' + unitId);
+    var e = makeEntity(game, {
+      team: team,
+      kind: def.kind === 'building' ? 'building' : 'troop',
+      unitId: unitId,
+      cardId: cardId,
+      x: x,
+      y: y,
+      def: def,
+      deployT: 1.0,
+    });
+    arenaClamp(e);
+    riverClamp(e);
+    game.entities.push(e);
+    return e;
+  }
+
+  function spawnFormation(game, team, unitId, count, x, y, cardId) {
+    var offs = formationOffsets(count);
+    var out = [];
+    for (var i = 0; i < offs.length; i++) {
+      out.push(spawnUnit(game, team, unitId, x + offs[i][0], y + offs[i][1], cardId));
+    }
+    return out;
+  }
+
+  // ---- targeting -------------------------------------------------------
+
+  // Whether an attacker with `targets` may hit entity `en`.
+  function canHitBy(targets, en) {
+    if (targets === 'none') return false;
+    if (en.air && targets !== 'both') return false;
+    if (targets === 'buildings') return en.kind !== 'troop';
+    return true;
+  }
+
+  function canHit(att, en) {
+    return !en.dead && en.team !== att.team && canHitBy(att.def.targets, en);
+  }
+
+  // Closest valid enemy whose edge-to-edge gap is within `limit`.
+  function findTarget(game, e, limit) {
+    var best = null;
+    var bestD = Infinity;
+    var list = game.entities;
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (!canHit(e, en)) continue;
+      var d = edgeDist(e, en);
+      if (d <= limit && d < bestD) {
+        best = en;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  function findTower(game, team, type, lane) {
+    var list = game.entities;
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (t.dead || t.kind !== 'tower' || t.team !== team) continue;
+      if (t.towerType !== type) continue;
+      if (lane !== undefined && t.lane !== lane) continue;
+      return t;
+    }
+    return null;
+  }
+
+  // Default walk goal: the princess tower in the unit's lane if alive, else the enemy king.
+  function defaultGoal(game, e) {
+    var enemy = 1 - e.team;
+    var lane = e.x < LANE_SPLIT ? 0 : 1;
+    var princess = findTower(game, enemy, 'princess', lane);
+    if (princess) return princess;
+    return findTower(game, enemy, 'king');
+  }
+
+  function setTarget(e, t) {
+    if (e.target === t) return;
+    e.target = t;
+    e.rampStage = 0;
+    e.rampT = 0;
+  }
+
+  function dropTarget(e) {
+    e.locked = false;
+    setTarget(e, null);
+    e.retargetT = 0;
+  }
+
+  // ---- status effects and damage --------------------------------------
+
+  // Stun and freeze both reset the attack, ramp, charge and lock.
+  function applyDisable(e, stun, freeze) {
+    if (e.kind === 'tower') return;
+    if (stun) e.stunT = Math.max(e.stunT, stun);
+    if (freeze) e.freezeT = Math.max(e.freezeT, freeze);
+    e.attackCooldown = e.def.loadTime || 0;
+    e.rampStage = 0;
+    e.rampT = 0;
+    e.charging = false;
+    e.chargeDist = 0;
+    e.locked = false;
+    e.retargetT = 0;
+  }
+
+  function knockback(e, dx, dy, amount) {
+    var d = Math.hypot(dx, dy);
+    if (d < EPS) {
+      dx = 1;
+      dy = 0;
+      d = 1;
+    }
+    e.x += (dx / d) * amount;
+    e.y += (dy / d) * amount;
+    e.locked = false;
+    e.charging = false;
+    e.chargeDist = 0;
+    e.retargetT = 0;
+  }
+
+  function endGame(game, winner, reason) {
+    if (game.phase === 'ended') return;
+    game.phase = 'ended';
+    game.timeLeft = 0;
+    game.result = {
+      winner: winner,
+      crowns: [game.players[0].crowns, game.players[1].crowns],
+      reason: reason,
+    };
+    game.events.push({ type: 'gameOver', team: winner, x: W / 2, y: H / 2 });
+  }
+
+  function activateKing(game, king) {
+    if (king.active) return;
+    king.active = true;
+    game.events.push({ type: 'kingActivate', team: king.team, x: king.x, y: king.y });
+  }
+
+  function towerDown(game, t) {
+    t.dead = true;
+    t.hp = 0;
+    var att = 1 - t.team;
+    var p = game.players[att];
+    game.events.push({ type: 'towerDown', team: t.team, x: t.x, y: t.y });
+    game.effects.push({ type: 'towerDown', x: t.x, y: t.y, radius: t.r, t: 0, dur: 1.0, team: t.team });
+    if (t.towerType === 'king') {
+      p.crowns = 3;
+      endGame(game, att, 'king');
+      return;
+    }
+    p.crowns = Math.min(3, p.crowns + 1);
+    var king = findTower(game, t.team, 'king');
+    if (king) activateKing(game, king);
+    if (game.phase === 'overtime') endGame(game, att, 'crowns');
+  }
+
+  function killEntity(game, e) {
+    if (e.dead) return;
+    e.dead = true;
+    game.events.push({ type: 'death', team: e.team, x: e.x, y: e.y, cardId: e.cardId });
+    game.effects.push({ type: 'death', x: e.x, y: e.y, radius: e.r, t: 0, dur: 0.4, team: e.team });
+    var def = e.def;
+    if (def.deathDamage) {
+      splashHit(game, e.team, 'ground', e.x, e.y, def.deathDamage.radius, def.deathDamage.damage, 0);
+    }
+    if (def.deathSpawn) {
+      spawnFormation(game, e.team, def.deathSpawn.unit, def.deathSpawn.count, e.x, e.y, null);
+    }
+  }
+
+  function damageEntity(game, en, amount) {
+    if (en.dead || !(amount > 0)) return;
+    en.hp -= amount;
+    if (en.kind === 'tower' && en.towerType === 'king') activateKing(game, en);
+    if (en.hp <= 0) {
+      en.hp = 0;
+      if (en.kind === 'tower') towerDown(game, en);
+      else killEntity(game, en);
+    }
+  }
+
+  // Area damage around (x, y). Targets must pass the attacker's targeting rules.
+  function splashHit(game, team, targets, x, y, radius, dmg, freezeT) {
+    var pt = { x: x, y: y, r: 0 };
+    var list = game.entities.slice();
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.team === team || !canHitBy(targets, en)) continue;
+      if (dist(en, pt) > (radius || 0) + en.r) continue;
+      if (freezeT && en.kind === 'troop') applyDisable(en, 0, freezeT);
+      damageEntity(game, en, dmg);
+    }
+    game.effects.push({ type: 'splash', x: x, y: y, radius: radius || 0, t: 0, dur: 0.35, team: team });
+  }
+
+  // ---- movement and pathing --------------------------------------------
+
+  function currentSpeed(e) {
+    var base = e.charging && e.def.charge ? e.def.charge.speed : e.def.speed;
+    return base * (1 - e.slowAmount);
+  }
+
+  function stepToward(e, tx, ty, dt, speed) {
+    var dx = tx - e.x;
+    var dy = ty - e.y;
+    var d = Math.hypot(dx, dy);
+    if (d < EPS || speed <= 0) return 0;
+    e.facing = Math.atan2(dy, dx);
+    var step = Math.min(d, speed * dt);
+    e.x += (dx / d) * step;
+    e.y += (dy / d) * step;
+    return step;
+  }
+
+  // Bridge whose total path (start -> entrance -> exit -> goal) is shortest.
+  function chooseBridgeX(e, gx, gy, side) {
+    var entY = side === 0 ? BANK_BOTTOM : BANK_TOP;
+    var exY = side === 0 ? BANK_TOP : BANK_BOTTOM;
+    var best = ARENA.BRIDGES[0].x;
+    var bestD = Infinity;
+    for (var i = 0; i < ARENA.BRIDGES.length; i++) {
+      var bx = ARENA.BRIDGES[i].x;
+      var d =
+        dist(e, { x: bx, y: entY }) +
+        Math.abs(entY - exY) +
+        dist({ x: bx, y: exY }, { x: gx, y: gy });
+      if (d < bestD) {
+        bestD = d;
+        best = bx;
+      }
+    }
+    return best;
+  }
+
+  // Next point a ground unit should walk to on its way to (gx, gy).
+  function nextWaypoint(e, gx, gy) {
+    if (e.air || e.def.jumpsRiver) return { x: gx, y: gy };
+    var gSide = sideOf(gy);
+    if (isRiverY(e.y)) {
+      // Already on a bridge: leave by the bank on the goal's side.
+      var bx = e.bridgeX !== null ? e.bridgeX : nearestBridge(e.x).x;
+      return { x: bx, y: gSide === 0 ? BANK_BOTTOM : BANK_TOP };
+    }
+    var side = sideOf(e.y);
+    if (side === gSide) {
+      e.bridgeX = null;
+      return { x: gx, y: gy };
+    }
+    if (e.bridgeX === null) e.bridgeX = chooseBridgeX(e, gx, gy, side);
+    var entY = side === 0 ? BANK_BOTTOM : BANK_TOP;
+    var exY = side === 0 ? BANK_TOP : BANK_BOTTOM;
+    // Once at the entrance, commit to the crossing (one-way switch avoids oscillating at the bank).
+    if (dist(e, { x: e.bridgeX, y: entY }) <= 0.6) {
+      return { x: e.bridgeX, y: exY };
+    }
+    return { x: e.bridgeX, y: entY };
+  }
+
+  // ---- attacks ----------------------------------------------------------
+
+  // Fires one attack from e at its current target. Melee lands now; ranged spawns a projectile.
+  function fire(game, e) {
+    var def = e.def;
+    var tgt = e.target;
+    if (!tgt) return;
+    var dmg = def.damage;
+    if (def.ramp) dmg = def.ramp.stages[e.rampStage];
+    if (e.charging && def.charge) {
+      dmg = def.damage * def.charge.damageMult;
+      e.charging = false;
+    }
+    e.chargeDist = 0;
+    e.lastAttackT = game.time;
+    e.facing = Math.atan2(tgt.y - e.y, tgt.x - e.x);
+
+    if (def.kamikaze) {
+      // Ice Spirit: the jump is an instant impact, then the unit is gone.
+      splashHit(game, e.team, def.targets, tgt.x, tgt.y, def.splash || 0, dmg, def.kamikaze.freeze);
+      game.events.push({ type: 'hit', team: e.team, x: tgt.x, y: tgt.y, cardId: e.cardId });
+      killEntity(game, e);
+      return;
+    }
+
+    if (def.projectile) {
+      game.projectiles.push({
+        x: e.x,
+        y: e.y,
+        team: e.team,
+        kind: def.projectile.kind,
+        target: tgt,
+        tx: tgt.x,
+        ty: tgt.y,
+        speed: def.projectile.speed,
+        damage: dmg,
+        splash: def.splash || 0,
+        targets: def.targets,
+        fromTower: e.kind === 'tower',
+        done: false,
+      });
+    } else {
+      if (def.splashAroundSelf) {
+        splashHit(game, e.team, def.targets, e.x, e.y, def.splash, dmg, 0);
+      } else if (def.splash) {
+        splashHit(game, e.team, def.targets, tgt.x, tgt.y, def.splash, dmg, 0);
+      } else {
+        damageEntity(game, tgt, dmg);
+      }
+      game.events.push({ type: 'hit', team: e.team, x: tgt.x, y: tgt.y, cardId: e.cardId });
+      game.effects.push({ type: 'hit', x: tgt.x, y: tgt.y, radius: tgt.r, t: 0, dur: 0.25, team: e.team });
+    }
+  }
+
+  function updateTower(game, t, dt) {
+    if (!t.active) return;
+    var def = t.def;
+    if (t.target && (t.target.dead || edgeDist(t, t.target) > def.range)) dropTarget(t);
+    if (!t.target) {
+      setTarget(t, findTarget(game, t, def.range));
+      if (!t.target) {
+        t.attackCooldown = 0;
+        return;
+      }
+    }
+    t.facing = Math.atan2(t.target.y - t.y, t.target.x - t.x);
+    t.attackCooldown -= dt;
+    if (t.attackCooldown <= 0) {
+      fire(game, t);
+      t.attackCooldown += def.hitSpeed;
+    }
+  }
+
+  // ---- per-unit update --------------------------------------------------
+
+  function updateUnit(game, e, dt) {
+    var def = e.def;
+
+    if (def.lifetime) {
+      e.hp -= (e.maxHp / def.lifetime) * dt;
+      if (e.hp <= 0) {
+        e.hp = 0;
+        killEntity(game, e);
+        return;
+      }
+    }
+    if (e.deployT > 0) {
+      e.deployT = Math.max(0, e.deployT - dt);
+      return;
+    }
+
+    e.stunT = Math.max(0, e.stunT - dt);
+    e.freezeT = Math.max(0, e.freezeT - dt);
+    e.slowT = Math.max(0, e.slowT - dt);
+    if (e.slowT === 0) e.slowAmount = 0;
+    var disabled = e.stunT > 0 || e.freezeT > 0;
+
+    if (def.spawn) {
+      e.spawnTimer -= dt;
+      if (e.spawnTimer <= 0) {
+        e.spawnTimer += def.spawn.interval;
+        var fy = e.y + (e.team === 0 ? -SPAWN_FRONT : SPAWN_FRONT);
+        spawnFormation(game, e.team, def.spawn.unit, def.spawn.count, e.x, fy, null);
+        game.effects.push({ type: 'spawn', x: e.x, y: fy, radius: 0.8, t: 0, dur: 0.5, team: e.team });
+      }
+    }
+
+    // Targeting: locked units keep their target; others re-scan every RETARGET_EVERY seconds.
+    if (e.target && !canHit(e, e.target)) dropTarget(e);
+    if (e.target && e.locked && edgeDist(e, e.target) > def.range + LOCK_BREAK) dropTarget(e);
+    e.retargetT -= dt;
+    if (!e.locked && e.retargetT <= 0) {
+      e.retargetT = RETARGET_EVERY;
+      setTarget(e, findTarget(game, e, e.sight));
+    }
+
+    if (def.ramp) {
+      if (e.target && e.locked && !disabled) {
+        e.rampT += dt;
+        var st = def.ramp.stageTime;
+        e.rampStage = e.rampT >= 2 * st ? 2 : e.rampT >= st ? 1 : 0;
+        e.beamTarget = e.target;
+      } else {
+        e.beamTarget = null;
+      }
+    }
+
+    var canAttack = def.damage > 0 && def.hitSpeed > 0;
+    var inRange = !!e.target && edgeDist(e, e.target) <= def.range + EPS;
+
+    if (!disabled && canAttack && inRange) {
+      if (!e.locked) {
+        e.locked = true;
+        e.attackCooldown = def.loadTime || 0;
+      }
+      e.chargeDist = 0;
+      e.attackCooldown -= dt;
+      if (e.attackCooldown <= 0) {
+        fire(game, e);
+        e.attackCooldown += def.hitSpeed;
+      }
+      return;
+    }
+
+    if (disabled || def.speed <= 0) return;
+
+    var gx = null;
+    var gy = null;
+    if (e.target) {
+      if (!inRange) {
+        gx = e.target.x;
+        gy = e.target.y;
+      }
+    } else {
+      var g = defaultGoal(game, e);
+      if (g) {
+        gx = g.x;
+        gy = g.y;
+      }
+    }
+    if (gx === null) return;
+
+    var wp = nextWaypoint(e, gx, gy);
+    var moved = stepToward(e, wp.x, wp.y, dt, currentSpeed(e));
+    if (moved > 0) {
+      e.chargeDist += moved;
+      if (def.charge && !e.charging && e.chargeDist >= def.charge.dist) e.charging = true;
+    }
+  }
+
+  // ---- spells -----------------------------------------------------------
+
+  function spellImpact(game, cardId, team, x, y) {
+    var card = CARDS[cardId];
+    if (card.spawnUnit) {
+      spawnFormation(game, team, card.spawnUnit, card.spawnCount || 1, x, y, cardId);
+      game.effects.push({ type: 'spawn', x: x, y: y, radius: card.radius || 1, t: 0, dur: 0.5, team: team });
+      return;
+    }
+    var pt = { x: x, y: y, r: 0 };
+    var radius = card.radius || 0;
+    var list = game.entities.slice();
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.team === team) continue;
+      if (dist(en, pt) > radius + en.r) continue;
+      if (en.kind === 'tower') {
+        damageEntity(game, en, card.towerDamage || 0);
+        continue;
+      }
+      if (en.air && card.log) continue; // the log only hits ground
+      if (card.stun || card.freeze) applyDisable(en, card.stun || 0, card.freeze || 0);
+      if (card.knockback && en.kind === 'troop' && !en.air && en.def.mass < 15) {
+        knockback(en, en.x - x, en.y - y, card.knockback);
+      }
+      damageEntity(game, en, card.damage || 0);
+    }
+    game.effects.push({
+      type: EFFECT_FOR_CARD[cardId] || 'hit',
+      x: x,
+      y: y,
+      radius: radius,
+      t: 0,
+      dur: 0.5,
+      team: team,
+    });
+  }
+
+  function castSpell(game, team, cardId, x, y) {
+    var card = CARDS[cardId];
+    game.events.push({ type: 'spell', team: team, x: x, y: y, cardId: cardId });
+    if (card.log) {
+      game.spells.push({
+        kind: 'log',
+        cardId: cardId,
+        team: team,
+        x: x,
+        y: y,
+        sx: x,
+        sy: y,
+        dir: team === 0 ? -1 : 1,
+        traveled: 0,
+        length: card.log.length,
+        width: card.log.width,
+        speed: card.log.speed,
+        hit: new Set(),
+        done: false,
+      });
+    } else if (card.duration) {
+      game.spells.push({
+        kind: 'poison',
+        cardId: cardId,
+        team: team,
+        x: x,
+        y: y,
+        radius: card.radius,
+        remaining: card.duration,
+        tickT: 1,
+        done: false,
+      });
+    } else if (card.travelSpeed > 0) {
+      var k = kingPos(team);
+      game.spells.push({
+        kind: 'flying',
+        cardId: cardId,
+        team: team,
+        x: k.x,
+        y: k.y,
+        tx: x,
+        ty: y,
+        travelSpeed: card.travelSpeed,
+        done: false,
+      });
+    } else {
+      spellImpact(game, cardId, team, x, y);
+    }
+  }
+
+  function poisonTick(game, s) {
+    var card = CARDS[s.cardId];
+    var pt = { x: s.x, y: s.y, r: 0 };
+    var list = game.entities.slice();
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.team === s.team) continue;
+      if (dist(en, pt) > s.radius + en.r) continue;
+      damageEntity(game, en, en.kind === 'tower' ? card.towerDps : card.dps);
+    }
+  }
+
+  function updateSpells(game, dt) {
+    for (var i = 0; i < game.spells.length; i++) {
+      var s = game.spells[i];
+      if (s.done) continue;
+      var card = CARDS[s.cardId];
+      if (s.kind === 'flying') {
+        var dx = s.tx - s.x;
+        var dy = s.ty - s.y;
+        var d = Math.hypot(dx, dy);
+        var step = s.travelSpeed * dt;
+        if (d <= step || d < EPS) {
+          s.x = s.tx;
+          s.y = s.ty;
+          s.done = true;
+          spellImpact(game, s.cardId, s.team, s.tx, s.ty);
+        } else {
+          s.x += (dx / d) * step;
+          s.y += (dy / d) * step;
+        }
+      } else if (s.kind === 'poison') {
+        s.remaining -= dt;
+        s.tickT -= dt;
+        if (s.tickT <= 0) {
+          s.tickT += 1;
+          poisonTick(game, s);
+        }
+        var pt = { x: s.x, y: s.y, r: 0 };
+        var list = game.entities;
+        for (var j = 0; j < list.length; j++) {
+          var en = list[j];
+          if (en.dead || en.team === s.team || en.kind === 'tower') continue;
+          if (dist(en, pt) > s.radius + en.r) continue;
+          en.slowT = Math.max(en.slowT, POISON_SLOW_TIME);
+          en.slowAmount = card.slow;
+        }
+        if (s.remaining <= 0) s.done = true;
+      } else if (s.kind === 'log') {
+        s.traveled = Math.min(s.length, s.traveled + s.speed * dt);
+        var front = s.sy + s.dir * s.traveled;
+        var targets = game.entities.slice();
+        for (var q = 0; q < targets.length; q++) {
+          var t = targets[q];
+          if (t.dead || t.team === s.team || t.air) continue;
+          if (s.hit.has(t.id)) continue;
+          if (Math.abs(t.x - s.x) > s.width / 2 + t.r) continue;
+          if (Math.abs(t.y - front) > 0.6 + t.r) continue;
+          s.hit.add(t.id);
+          if (t.kind === 'tower') {
+            damageEntity(game, t, card.towerDamage);
+          } else {
+            if (t.kind === 'troop' && t.def.mass < 15) knockback(t, 0, s.dir, card.knockback);
+            damageEntity(game, t, card.damage);
+          }
+        }
+        if (s.traveled >= s.length) s.done = true;
+      }
+    }
+  }
+
+  // ---- projectiles ------------------------------------------------------
+
+  function impactProjectile(game, p) {
+    if (p.splash > 0) {
+      splashHit(game, p.team, p.targets, p.x, p.y, p.splash, p.damage, 0);
+    } else if (p.target && !p.target.dead) {
+      damageEntity(game, p.target, p.damage);
+    }
+    game.events.push({ type: 'hit', team: p.team, x: p.x, y: p.y });
+    game.effects.push({ type: 'hit', x: p.x, y: p.y, radius: 0.5, t: 0, dur: 0.3, team: p.team });
+  }
+
+  function updateProjectiles(game, dt) {
+    for (var i = 0; i < game.projectiles.length; i++) {
+      var p = game.projectiles[i];
+      if (p.done) continue;
+      if (p.target && !p.target.dead) {
+        p.tx = p.target.x;
+        p.ty = p.target.y;
+      }
+      var dx = p.tx - p.x;
+      var dy = p.ty - p.y;
+      var d = Math.hypot(dx, dy);
+      var step = p.speed * dt;
+      if (d <= Math.max(step, 0.3)) {
+        p.x = p.tx;
+        p.y = p.ty;
+        p.done = true;
+        impactProjectile(game, p);
+      } else {
+        p.x += (dx / d) * step;
+        p.y += (dy / d) * step;
+      }
+    }
+  }
+
+  // ---- collisions and bounds -------------------------------------------
+
+  // Pairwise push-apart within the same layer (ground or air). Towers and buildings are immovable.
+  function resolveCollisions(game) {
+    var list = game.entities;
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < list.length; i++) {
+        var a = list[i];
+        if (a.dead) continue;
+        for (var j = i + 1; j < list.length; j++) {
+          var b = list[j];
+          if (b.dead) continue;
+          if (a.kind !== 'troop' && b.kind !== 'troop') continue;
+          if (a.air !== b.air) continue;
+          var dx = b.x - a.x;
+          var dy = b.y - a.y;
+          var minD = a.r + b.r;
+          var d2 = dx * dx + dy * dy;
+          if (d2 >= minD * minD) continue;
+          var d = Math.sqrt(d2);
+          var nx = 1;
+          var ny = 0;
+          if (d >= EPS) {
+            nx = dx / d;
+            ny = dy / d;
+          } else {
+            d = 0;
+          }
+          var overlap = minD - d;
+          var aFixed = a.kind !== 'troop';
+          var bFixed = b.kind !== 'troop';
+          var fa;
+          var fb;
+          if (aFixed) {
+            fa = 0;
+            fb = 1;
+          } else if (bFixed) {
+            fa = 1;
+            fb = 0;
+          } else {
+            var ma = a.def.mass;
+            var mb = b.def.mass;
+            fa = mb / (ma + mb);
+            fb = ma / (ma + mb);
+          }
+          a.x -= nx * overlap * fa;
+          a.y -= ny * overlap * fa;
+          b.x += nx * overlap * fb;
+          b.y += ny * overlap * fb;
+        }
+      }
+      for (i = 0; i < list.length; i++) {
+        var e = list[i];
+        if (e.dead || e.kind === 'tower') continue;
+        riverClamp(e);
+        arenaClamp(e);
+      }
+    }
+  }
+
+  // ---- match phases and cleanup ----------------------------------------
+
+  function lowestTowerHp(game, team) {
+    var m = Infinity;
+    for (var i = 0; i < game.entities.length; i++) {
+      var t = game.entities[i];
+      if (!t.dead && t.kind === 'tower' && t.team === team && t.hp < m) m = t.hp;
+    }
+    return m === Infinity ? 0 : m;
+  }
+
+  function updatePhase(game) {
+    if (game.phase === 'regulation') {
+      game.timeLeft = Math.max(0, MATCH.regulation - game.time);
+      game.elixirMult = game.time >= MATCH.regulation - MATCH.doubleAt ? 2 : 1;
+      if (game.time >= MATCH.regulation) {
+        var c0 = game.players[0].crowns;
+        var c1 = game.players[1].crowns;
+        if (c0 !== c1) {
+          endGame(game, c0 > c1 ? 0 : 1, 'crowns');
+        } else {
+          game.phase = 'overtime';
+          game.overtimeStart = game.time;
+          game.timeLeft = MATCH.overtime;
+          game.elixirMult = 2;
+        }
+      }
+    }
+    if (game.phase === 'overtime') {
+      var el = game.time - game.overtimeStart;
+      game.timeLeft = Math.max(0, MATCH.overtime - el);
+      game.elixirMult = el < MATCH.overtime / 2 ? 2 : 3;
+      if (el >= MATCH.overtime) {
+        var h0 = lowestTowerHp(game, 0);
+        var h1 = lowestTowerHp(game, 1);
+        if (h0 === h1) endGame(game, -1, 'draw');
+        else endGame(game, h0 < h1 ? 1 : 0, 'tiebreak');
+      }
+    }
+  }
+
+  function ageEffects(game, dt) {
+    for (var i = 0; i < game.effects.length; i++) game.effects[i].t += dt;
+    game.effects = game.effects.filter(function (f) {
+      return f.t < f.dur;
+    });
+  }
+
+  // Removes dead entities and finished projectiles/spells, and drops references to dead targets.
+  function cleanup(game) {
+    game.entities = game.entities.filter(function (e) {
+      return !e.dead;
+    });
+    for (var i = 0; i < game.entities.length; i++) {
+      var e = game.entities[i];
+      if (e.target && e.target.dead) {
+        e.target = null;
+        e.locked = false;
+        e.retargetT = 0;
+      }
+      if (e.beamTarget && e.beamTarget.dead) e.beamTarget = null;
+    }
+    game.projectiles = game.projectiles.filter(function (p) {
+      if (p.target && p.target.dead) p.target = null;
+      return !p.done;
+    });
+    game.spells = game.spells.filter(function (s) {
+      return !s.done;
+    });
+  }
+
+  // ---- players and deploy zone -----------------------------------------
+
+  function makePlayer(game, deckIn) {
+    if (!deckIn || deckIn.length < 5) throw new Error('A deck needs at least 5 cards');
+    var deck = deckIn.slice();
+    for (var i = 0; i < deck.length; i++) {
+      if (!CARDS[deck[i]]) throw new Error('Unknown card: ' + deck[i]);
+    }
+    for (i = deck.length - 1; i > 0; i--) {
+      var j = Math.floor(game.rng() * (i + 1));
+      var tmp = deck[i];
+      deck[i] = deck[j];
+      deck[j] = tmp;
+    }
+    return {
+      elixir: ELIXIR.start,
+      crowns: 0,
+      deck: deck,
+      hand: deck.slice(0, 4),
+      next: deck[4],
+      queue: deck.slice(5),
+    };
+  }
+
+  // Pocket: once the enemy princess tower in the point's lane is gone, the point may be on the enemy side.
+  function inPocket(game, team, x, y) {
+    var lane = x < LANE_SPLIT ? 0 : 1;
+    if (findTower(game, 1 - team, 'princess', lane)) return false;
+    if (team === 0) return y >= RIVER_TOP - POCKET_REACH && y <= RIVER_TOP;
+    return y >= RIVER_BOTTOM && y <= RIVER_BOTTOM + POCKET_REACH;
+  }
+
+  // ---- public API -------------------------------------------------------
+
+  class Game {
+    constructor(opts) {
+      opts = opts || {};
+      var decks = opts.decks || [CR.DEFAULT_DECK, CR.DEFAULT_DECK];
+      this.seed = opts.seed === undefined ? 1 : opts.seed;
+      this.rng = mulberry32(this.seed);
+      this.nextId = 1;
+      this.time = 0;
+      this.phase = 'regulation';
+      this.timeLeft = MATCH.regulation;
+      this.elixirMult = 1;
+      this.overtimeStart = 0;
+      this.entities = [];
+      this.projectiles = [];
+      this.spells = [];
+      this.effects = [];
+      this.events = [];
+      this.result = null;
+      this.players = [makePlayer(this, decks[0]), makePlayer(this, decks[1])];
+      for (var t = 0; t < 2; t++) this._spawnTowers(t);
+    }
+
+    _spawnTowers(team) {
+      var L = TOWERS.layout;
+      for (var k = 0; k < L.length; k++) {
+        var entry = L[k];
+        var pos = towerLayoutPos(team, entry);
+        this.entities.push(
+          makeEntity(this, {
+            team: team,
+            kind: 'tower',
+            unitId: entry.type,
+            towerType: entry.type,
+            lane: entry.lane,
+            x: pos.x,
+            y: pos.y,
+            def: towerDef(entry.type),
+            deployT: 0,
+            active: entry.type !== 'king',
+          })
+        );
+      }
+    }
+
+    update(dt) {
+      this.events = [];
+      if (!isNum(dt) || dt <= 0) return;
+      if (this.phase === 'ended') {
+        ageEffects(this, dt);
+        cleanup(this);
+        return;
+      }
+      this.time += dt;
+      updatePhase(this);
+      if (this.phase !== 'ended') {
+        for (var t = 0; t < 2; t++) {
+          var p = this.players[t];
+          p.elixir = Math.min(ELIXIR.max, p.elixir + (dt * this.elixirMult) / ELIXIR.regen);
+        }
+        var list = this.entities.slice();
+        for (var i = 0; i < list.length; i++) {
+          var e = list[i];
+          if (e.dead) continue;
+          if (e.kind === 'tower') updateTower(this, e, dt);
+          else updateUnit(this, e, dt);
+          if (this.phase === 'ended') break;
+        }
+      }
+      if (this.phase !== 'ended') {
+        updateSpells(this, dt);
+        updateProjectiles(this, dt);
+        resolveCollisions(this);
+      }
+      ageEffects(this, dt);
+      cleanup(this);
+    }
+
+    isInDeployZone(team, cardId, x, y) {
+      var card = CARDS[cardId];
+      if (!card || !isNum(x) || !isNum(y)) return false;
+      if (x < 0 || x > W || y < 0 || y > H) return false;
+      if (card.type === 'spell') return true;
+      var own = team === 0 ? y >= RIVER_BOTTOM : y <= RIVER_TOP;
+      if (!own && !inPocket(this, team, x, y)) return false;
+      for (var i = 0; i < this.entities.length; i++) {
+        var t = this.entities[i];
+        if (t.dead || t.kind !== 'tower') continue;
+        var half = t.size / 2;
+        if (Math.abs(x - t.x) < half && Math.abs(y - t.y) < half) return false;
+      }
+      return true;
+    }
+
+    canDeploy(team, handIndex, x, y) {
+      var p = this.players[team];
+      if (!p || this.phase === 'ended') return false;
+      if (!(Number.isInteger(handIndex) && handIndex >= 0 && handIndex < p.hand.length)) return false;
+      if (!isNum(x) || !isNum(y)) return false;
+      var cardId = p.hand[handIndex];
+      var card = CARDS[cardId];
+      if (!card || p.elixir + 1e-9 < card.cost) return false;
+      return this.isInDeployZone(team, cardId, clamp(x, 0, W), clamp(y, 0, H));
+    }
+
+    deploy(team, handIndex, x, y) {
+      if (!this.canDeploy(team, handIndex, x, y)) return false;
+      var p = this.players[team];
+      var cardId = p.hand[handIndex];
+      var card = CARDS[cardId];
+      var px = clamp(x, 0, W);
+      var py = clamp(y, 0, H);
+
+      p.elixir = Math.max(0, p.elixir - card.cost);
+      p.queue.push(cardId);
+      p.hand[handIndex] = p.next;
+      p.next = p.queue.shift();
+
+      this.events.push({ type: 'deploy', team: team, x: px, y: py, cardId: cardId });
+      this.effects.push({ type: 'deploy', x: px, y: py, radius: 1, t: 0, dur: 0.5, team: team });
+      this.effects.push({ type: 'elixir', x: px, y: py, radius: 0, t: 0, dur: 0.8, team: team, text: '-' + card.cost });
+
+      if (card.type === 'spell') {
+        castSpell(this, team, cardId, px, py);
+      } else if (card.type === 'building') {
+        spawnUnit(this, team, card.unit, px, py, cardId);
+      } else {
+        spawnFormation(this, team, card.unit, card.count, px, py, cardId);
+      }
+      return true;
+    }
+
+    getUnitsOf(team) {
+      return this.entities.filter(function (e) {
+        return !e.dead && e.team === team && e.kind !== 'tower';
+      });
+    }
+
+    getTowers(team) {
+      return this.entities.filter(function (e) {
+        return !e.dead && e.team === team && e.kind === 'tower';
+      });
+    }
+  }
+
+  CR.Game = Game;
+})();
+
+if (typeof module !== 'undefined') module.exports = CR;
+
+</script>
+<script>
+// Computer opponent (CR.AI). Uses only the public engine API: reads state, calls
+// game.canDeploy and game.deploy. Thinks every THINK seconds. Randomness comes from a
+// seeded mulberry32 (never Math.random), so matches replay identically.
+//
+// All geometry is done in the AI's own frame: fy = y for team 1 (top), fy = 32 - y for
+// team 0. In that frame the AI's towers sit near fy 3..6.5, the river is fy 15..17, and
+// enemy troops walk toward decreasing fy. x is the same in both frames.
+var CR = (globalThis.CR = globalThis.CR || {});
+
+(function () {
+  var W = CR.ARENA.W;
+  var H = CR.ARENA.H;
+  var KING_X = 9;
+  var PRINCESS_X = [3.5, 14.5];
+  var THINK = 0.25;
+  var THREAT_FY = 21;   // enemies above this line (own frame) are threats
+  var OWN_FY = 15;      // own half in own frame is fy < 15
+  var FRONT_FY = 9.5;   // melee defenders, just in front of the princess tower
+  var BACK_FY = 4.5;    // ranged defenders, just behind the princess tower
+  var CENTRE_FY = 7.5;  // building pulls for win conditions, centre, in front of the king
+  var PUSH_FY = 8.5;    // push tank or filler spot
+  var POCKET_FY = 19;   // pocket spot when the enemy princess in that lane is down
+  var BRIDGE_FY = 13;   // win condition waits on its side of the bridge
+  var TANK_HP = 2500;
+  var SWARM_HP = 400;
+  var KEY_RANGED = { musketeer: 1, wizard: 1, witch: 1, archer: 1, speargoblin: 1 };
+
+  var DIFF = {
+    easy: {
+      react: [1.2, 2.0], gap: [1.8, 2.6], jitter: 1.0, pushAt: 9, leak: 0.5,
+      errChance: 0.3, costBias: 0.04, spellBias: 1.5, counterPush: false
+    },
+    normal: {
+      react: [0.6, 1.1], gap: [1.1, 1.6], jitter: 0.4, pushAt: 8, leak: 0,
+      errChance: 0.05, costBias: 0.1, spellBias: 1.15, counterPush: false
+    },
+    hard: {
+      react: [0.25, 0.5], gap: [0.7, 1.0], jitter: 0.15, pushAt: 8, leak: 0,
+      errChance: 0, costBias: 0.1, spellBias: 1.0, counterPush: true
+    }
+  };
+
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Card roles, derived from CR.CARDS and CR.UNITS data only.
+  var ROLE = {};
+  var UNIT_COST = {}; // elixir per spawned unit, averaged over the cards that make it
+  (function classify() {
+    var costSum = {}, costN = {};
+    Object.keys(CR.CARDS).forEach(function (id) {
+      var c = CR.CARDS[id];
+      var u = c.unit ? CR.UNITS[c.unit] : null;
+      var count = c.count || 1;
+      var R = {
+        id: id, cost: c.cost, type: c.type, count: count,
+        troop: c.type === 'troop', building: c.type === 'building', spell: c.type === 'spell',
+        unitId: c.unit || null,
+        winCon: false,        // targets buildings, or Goblin Barrel
+        tank: false,          // troop with hp >= TANK_HP
+        splash: false,
+        airCapable: false,    // hits air
+        swarm: false,         // multi-unit card
+        groundSwarm: false,   // multi-unit card that only hits ground
+        counters: false,      // can damage something at all
+        ranged: false, range: 0, dps: 0,
+        damage: c.damage || 0, towerDamage: c.towerDamage || 0, radius: c.radius || 0,
+        travelSpeed: c.travelSpeed || 0, freeze: c.freeze || 0,
+        effDamage: 0,         // spells: direct damage, or total poison damage
+        damageSpell: false, cheap: false, heavy: false,
+        barrel: !!c.spawnUnit, log: !!c.log
+      };
+      if (u) {
+        R.range = u.range;
+        R.ranged = !!u.projectile || u.range >= 3;
+        R.dps = u.hitSpeed ? (u.ramp ? u.ramp.stages[1] : u.damage) / u.hitSpeed : 0;
+        R.winCon = u.targets === 'buildings';
+        R.tank = u.kind === 'troop' && u.hp >= TANK_HP;
+        R.splash = !!(u.splash || u.splashAroundSelf);
+        R.airCapable = u.targets === 'both';
+        R.swarm = R.troop && count >= 3;
+        R.groundSwarm = R.swarm && u.targets === 'ground';
+        R.counters = u.targets !== 'none' && (u.damage > 0 || !!u.ramp);
+        costSum[c.unit] = (costSum[c.unit] || 0) + c.cost / count;
+        costN[c.unit] = (costN[c.unit] || 0) + 1;
+      } else {
+        R.winCon = !!c.spawnUnit;
+        R.splash = (c.radius || 0) > 0;
+        R.airCapable = !c.log && !c.spawnUnit;
+        R.effDamage = (c.damage || 0) || (c.dps || 0) * (c.duration || 0);
+        R.damageSpell = R.effDamage > 0;
+        R.counters = R.damageSpell;
+        R.cheap = R.damageSpell && c.cost <= 2;
+        R.heavy = R.effDamage >= 1000;
+      }
+      ROLE[id] = R;
+    });
+    Object.keys(costSum).forEach(function (n) { UNIT_COST[n] = costSum[n] / costN[n]; });
+  })();
+
+  // Coordinates in the AI's frame (see header). The mapping is its own inverse.
+  function fyOf(team, y) { return team === 1 ? y : H - y; }
+  function realY(team, fy) { return team === 1 ? fy : H - fy; }
+  function laneOf(x) { return x < KING_X ? 0 : 1; }
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function dist(ax, ay, bx, by) { var dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy); }
+  function alive(e) { return !!e && !e.dead && e.hp > 0; }
+
+  function unitBase(unitId) {
+    if (UNIT_COST[unitId] !== undefined) return UNIT_COST[unitId];
+    var u = CR.UNITS[unitId];
+    return u ? clamp(u.hp / 400, 0.2, 6) : 0.5;
+  }
+  // Elixir-equivalent value of a live unit, scaled by its remaining hp.
+  function unitValue(e) { return unitBase(e.unitId) * Math.max(0.2, e.hp / e.maxHp); }
+
+  function isHeavy(e) {
+    var u = CR.UNITS[e.unitId];
+    return !!u && u.kind === 'troop' && (u.hp >= TANK_HP || u.targets === 'buildings');
+  }
+
+  // Offsets tried in order when the ideal deploy spot is invalid.
+  var SPIRAL = [[0, 0]];
+  (function () {
+    [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4].forEach(function (r) {
+      for (var k = 0; k < 12; k++) {
+        var a = (k * Math.PI) / 6;
+        SPIRAL.push([r * Math.cos(a), r * Math.sin(a)]);
+      }
+    });
+  })();
+
+  function AI(game, team, opts) {
+    opts = opts || {};
+    this.game = game;
+    this.team = team;
+    this.enemy = 1 - team;
+    this.difficulty = DIFF[opts.difficulty] ? opts.difficulty : 'normal';
+    this.cfg = DIFF[this.difficulty];
+    var seed = (Math.floor((game.time || 0) * 1000) ^ Math.imul(team + 1, 0x9e3779b1) ^ (opts.seed | 0)) >>> 0;
+    this.rng = mulberry32(seed);
+    this.thinkT = 0;
+    this.nextPlayT = 0;
+    this.reactAt = [null, null];   // per lane: game time when the AI starts reacting to a threat
+    this.threatTowers = 0;         // own tower count when the current threat began
+    this.counterUntil = -1;        // hard: window for an opportunistic counter-push
+    this.push = null;              // { lane, start } while pushing
+    this.pushCooldownUntil = 0;
+    this.prev = {};                // enemy id -> { x, y, t, vx, vy } for lead aiming
+  }
+
+  AI.roles = ROLE;
+  AI.unitCost = UNIT_COST;
+
+  AI.prototype.rand = function (range) {
+    return range[0] + (range[1] - range[0]) * this.rng();
+  };
+
+  AI.prototype.update = function (dt) {
+    var g = this.game;
+    if (!g || g.result || g.phase === 'ended') return;
+    this.thinkT -= dt;
+    if (this.thinkT > 0) return;
+    this.thinkT += THINK;
+    if (this.thinkT <= 0) this.thinkT = THINK;
+    this.think();
+  };
+
+  AI.prototype.think = function () {
+    var g = this.game, t = g.time, me = g.players[this.team];
+    if (!me) return;
+    var enemies = g.getUnitsOf(this.enemy).filter(alive);
+    var eTowers = g.getTowers(this.enemy).filter(alive);
+    var myUnits = g.getUnitsOf(this.team).filter(alive);
+    var myTowers = g.getTowers(this.team).filter(alive);
+
+    this.trackVelocities(enemies, t);
+    var threats = this.assessThreats(enemies, myUnits);
+    this.updateReactions(threats, myTowers.length, t);
+    if (t < this.nextPlayT) return;
+
+    var opt = this.towerFinish(me, eTowers);
+    if (!opt) {
+      var self = this;
+      var ready = threats.filter(function (T) {
+        return T.need > 0.5 && self.reactAt[T.lane] !== null && t >= self.reactAt[T.lane];
+      });
+      ready.sort(function (a, b) { return b.value - a.value; });
+      for (var i = 0; i < ready.length && !opt; i++) {
+        opt = this.bestDefence(ready[i], me, enemies);
+      }
+    }
+    var uncovered = threats.some(function (T) { return T.need > 0.5; });
+    if (!opt && me.elixir >= 9.5) opt = this.leakFix(me);
+    if (!opt && !uncovered) opt = this.offence(me, myUnits, eTowers, t);
+    if (opt) this.play(opt, t);
+  };
+
+  // Velocity from the last think, used to lead spells at moving clusters.
+  AI.prototype.trackVelocities = function (enemies, t) {
+    var next = {};
+    enemies.forEach(function (e) {
+      var p = this.prev[e.id], vx = 0, vy = 0;
+      if (p && t > p.t) {
+        vx = (e.x - p.x) / (t - p.t);
+        vy = (e.y - p.y) / (t - p.t);
+      }
+      next[e.id] = { x: e.x, y: e.y, t: t, vx: vx, vy: vy };
+    }, this);
+    this.prev = next;
+  };
+
+  AI.prototype.ourDefence = function (myUnits, lane) {
+    var sum = 0, team = this.team;
+    myUnits.forEach(function (u) {
+      if (laneOf(u.x) === lane && fyOf(team, u.y) < OWN_FY) sum += unitValue(u);
+    });
+    return sum;
+  };
+
+  // Threats: enemy units (and buildings) inside THREAT_FY, grouped by lane.
+  AI.prototype.assessThreats = function (enemies, myUnits) {
+    var self = this;
+    var lanes = [null, null];
+    enemies.forEach(function (e) {
+      var fy = fyOf(self.team, e.y);
+      if (fy >= THREAT_FY) return;
+      var u = CR.UNITS[e.unitId];
+      if (!u) return;
+      var L = laneOf(e.x);
+      var T = lanes[L] || (lanes[L] = {
+        lane: L, value: 0, airValue: 0, count: 0, lowHp: 0,
+        tank: false, winCon: false, air: false, swarm: false,
+        minFy: 99, units: [], need: 0
+      });
+      var v = unitValue(e);
+      T.value += v;
+      T.count++;
+      T.units.push(e);
+      if (e.air) { T.air = true; T.airValue += v; }
+      if (u.hp >= TANK_HP) T.tank = true;
+      if (u.targets === 'buildings') T.winCon = true;
+      if (u.kind === 'troop' && u.hp <= SWARM_HP) T.lowHp++;
+      if (fy < T.minFy) T.minFy = fy;
+    });
+    var out = [];
+    lanes.forEach(function (T) {
+      if (!T) return;
+      T.swarm = T.lowHp >= 3;
+      T.need = T.value - 0.8 * self.ourDefence(myUnits, T.lane);
+      out.push(T);
+    });
+    return out;
+  };
+
+  AI.prototype.updateReactions = function (threats, towers, t) {
+    var has = [false, false];
+    threats.forEach(function (T) { has[T.lane] = true; });
+    var wasAny = this.reactAt[0] !== null || this.reactAt[1] !== null;
+    var anyNow = has[0] || has[1];
+    if (anyNow && !wasAny) this.threatTowers = towers;
+    for (var L = 0; L < 2; L++) {
+      if (has[L] && this.reactAt[L] === null) {
+        this.reactAt[L] = t + this.rand(this.cfg.react);
+      } else if (!has[L]) {
+        this.reactAt[L] = null;
+      }
+    }
+    if (wasAny && !anyNow && towers >= this.threatTowers) {
+      // Threat cleared without losing a tower: a good moment to counter-push (hard).
+      this.counterUntil = t + 8;
+    }
+  };
+
+  // Troop placement in the AI frame for a counter against threat T.
+  AI.prototype.troopSpot = function (R, T) {
+    var lx = PRINCESS_X[T.lane];
+    if (R.building) return T.winCon ? { fx: KING_X, fy: CENTRE_FY } : { fx: lx, fy: BACK_FY };
+    if (R.ranged) return { fx: lx, fy: BACK_FY };
+    return { fx: lx, fy: FRONT_FY };
+  };
+
+  AI.prototype.counterScore = function (R, T) {
+    // Non-damaging buildings (tombstone, goblin hut) still pull building-targeting win conditions.
+    if (!R.counters) return (R.building && T.winCon) ? 1.5 : 0;
+    var airFrac = T.value > 0 ? T.airValue / T.value : 0;
+    if (airFrac > 0.5 && !R.airCapable) return 0;
+    var s = 1;
+    if (airFrac > 0 && R.airCapable) s += 1 + 2 * airFrac;
+    if (T.swarm) {
+      if (R.splash) s += 2.5;
+      if (R.swarm) s += 0.5;
+    }
+    if (T.tank || T.winCon) {
+      s += Math.min(3, R.dps / 250);
+      if (R.tank) s += 0.5;
+      if (R.building && T.winCon) s += 2;
+    }
+    if (R.building && !T.winCon) s -= 0.5;
+    return s;
+  };
+
+  AI.prototype.bestDefence = function (T, me, enemies) {
+    var self = this, cfg = this.cfg, opts = [];
+    me.hand.forEach(function (cid, hIdx) {
+      var R = ROLE[cid];
+      if (!R || R.cost > me.elixir + 1e-6) return;
+      if (R.spell) {
+        var sp = self.spellPlay(R, hIdx, enemies);
+        if (sp) opts.push(sp);
+        return;
+      }
+      var s = self.counterScore(R, T);
+      if (s <= 0) return;
+      s -= R.cost * cfg.costBias + Math.max(0, R.cost - (T.need * 1.3 + 1.5)) * 0.25;
+      var p = self.troopSpot(R, T);
+      opts.push({ kind: 'troop', hIdx: hIdx, fx: p.fx, fy: p.fy, score: s, cost: R.cost });
+    });
+    var best = opts.reduce(function (m, o) { return Math.max(m, o.score); }, -Infinity);
+    if (T.tank && best < 1.5) {
+      // Kite: no real counter for a tank, so drop the cheapest troop into the centre to pull it.
+      var kite = null;
+      me.hand.forEach(function (cid, hIdx) {
+        var R = ROLE[cid];
+        if (!R || !R.troop || R.cost > Math.min(3, me.elixir)) return;
+        if (!kite || R.cost < kite.cost) kite = { hIdx: hIdx, cost: R.cost };
+      });
+      if (kite) opts.push({ kind: 'troop', hIdx: kite.hIdx, fx: KING_X, fy: FRONT_FY, score: 1.0, cost: kite.cost });
+    }
+    if (!opts.length) return null;
+    opts.sort(function (a, b) { return b.score - a.score; });
+    var pick = opts[0];
+    if (opts.length > 1 && this.rng() < cfg.errChance) {
+      pick = opts[1 + Math.floor(this.rng() * (opts.length - 1))];
+    }
+    return pick;
+  };
+
+  AI.prototype.kingReal = function () {
+    var ks = this.game.getTowers(this.team).filter(function (tw) { return tw.towerType === 'king' && alive(tw); });
+    if (ks.length) return { x: ks[0].x, y: ks[0].y };
+    return { x: KING_X, y: realY(this.team, 3) };
+  };
+
+  // Damage a spell does to one unit, in elixir-equivalent value.
+  AI.prototype.spellValueOn = function (R, u, fy) {
+    var dmg = R.effDamage;
+    var base = unitBase(u.unitId);
+    var v = u.hp <= dmg ? base : base * 0.5 * Math.min(1, dmg / u.hp);
+    if (R.freeze) v += base * 0.3;
+    if (u.unitId === 'infernotower' && (R.id === 'zap' || R.log)) v += 1.5 * (1 + (u.rampStage || 0));
+    if (KEY_RANGED[u.unitId] && u.hp <= dmg && fy <= 12) v += 1;
+    return v;
+  };
+
+  // Best aim for a damage spell against enemy clusters in the threat zone.
+  // Returns a spell option or null.
+  AI.prototype.spellPlay = function (R, hIdx, enemies) {
+    var self = this, cfg = this.cfg, team = this.team;
+    var zone = enemies.filter(function (e) { return fyOf(team, e.y) < THREAT_FY; });
+    if (!zone.length || !R.counters || R.barrel) return null;
+    var rad = R.log ? 2.0 : (R.radius || 1.5);
+    var best = null;
+    zone.forEach(function (c) {
+      var V = 0, cluster = [];
+      zone.forEach(function (u) {
+        if (dist(c.x, c.y, u.x, u.y) > rad + u.r) return;
+        if (u.air && !R.airCapable) return;
+        var v = self.spellValueOn(R, u, fyOf(team, u.y));
+        if (v <= 0) return;
+        V += v;
+        cluster.push(u);
+      });
+      if (cluster.length && (!best || V > best.V)) best = { V: V, cluster: cluster };
+    });
+    if (!best || best.V < R.cost * cfg.spellBias) return null;
+
+    var n = best.cluster.length, sx = 0, sy = 0, vx = 0, vy = 0;
+    best.cluster.forEach(function (u) {
+      sx += u.x; sy += u.y;
+      var p = self.prev[u.id];
+      if (p) { vx += p.vx; vy += p.vy; }
+    });
+    var cx = sx / n, cy = sy / n;
+    var ax = cx, ay = cy;
+    if (R.log) {
+      // The log rolls toward the enemy (increasing fy), so start it behind the cluster.
+      var fy0 = clamp(fyOf(team, cy) - 3, 0.5, H - 0.5);
+      ay = realY(team, fy0);
+    } else if (R.travelSpeed > 0) {
+      var k = self.kingReal();
+      var tt = dist(k.x, k.y, cx, cy) / R.travelSpeed;
+      ax += (vx / n) * tt * 0.7;
+      ay += (vy / n) * tt * 0.7;
+    }
+    ax = clamp(ax, 0.2, W - 0.2);
+    ay = clamp(ay, 0.2, H - 0.2);
+    return { kind: 'spell', hIdx: hIdx, x: ax, y: ay, cost: R.cost, score: Math.min(6, (2 * best.V) / R.cost) };
+  };
+
+  // Finish a tower with a damage spell when the spell's tower damage covers its hp.
+  AI.prototype.towerFinish = function (me, eTowers) {
+    var best = null;
+    me.hand.forEach(function (cid, hIdx) {
+      var R = ROLE[cid];
+      if (!R || !R.spell || R.cost > me.elixir || R.towerDamage <= 0 || !R.damageSpell || R.log) return;
+      eTowers.forEach(function (tw) {
+        if (tw.hp > R.towerDamage) return;
+        if (!best || R.cost < best.cost) best = { kind: 'spell', hIdx: hIdx, x: tw.x, y: tw.y, cost: R.cost };
+      });
+    });
+    return best;
+  };
+
+  // Elixir at the cap: play the cheapest troop at the back instead of leaking.
+  AI.prototype.leakFix = function (me) {
+    if (me.elixir < 9.5) return null;
+    if (this.cfg.leak && this.rng() < this.cfg.leak) return null;
+    var best = null;
+    me.hand.forEach(function (cid, hIdx) {
+      var R = ROLE[cid];
+      if (!R || !R.troop || R.cost > me.elixir) return;
+      if (!best || R.cost < best.cost) best = { hIdx: hIdx, cost: R.cost, ranged: R.ranged || R.building };
+    });
+    if (!best) return null;
+    var lx = PRINCESS_X[this.rng() < 0.5 ? 0 : 1];
+    return {
+      kind: 'troop', hIdx: best.hIdx, cost: best.cost, score: 0,
+      fx: lx, fy: best.ranged ? BACK_FY : FRONT_FY
+    };
+  };
+
+  AI.prototype.pickLane = function (eTowers) {
+    var best = 0, bestScore = -Infinity;
+    for (var L = 0; L < 2; L++) {
+      var pr = eTowers.filter(function (tw) { return tw.towerType === 'princess' && laneOf(tw.x) === L; })[0];
+      var s = pr ? -pr.hp : 1e6;   // a downed princess opens the pocket, which is preferred
+      s += this.rng() * 50;
+      if (s > bestScore) { bestScore = s; best = L; }
+    }
+    return best;
+  };
+
+  // Best card in hand matching pred by dps (ties by cheaper cost). Returns { idx, R } or null.
+  function bestInHand(me, pred) {
+    var best = null;
+    me.hand.forEach(function (cid, idx) {
+      var R = ROLE[cid];
+      if (!R || !pred(R)) return;
+      if (!best || R.dps > best.R.dps || (R.dps === best.R.dps && R.cost < best.R.cost)) best = { idx: idx, R: R };
+    });
+    return best;
+  }
+
+  AI.prototype.offence = function (me, myUnits, eTowers, t) {
+    var g = this.game, cfg = this.cfg, team = this.team;
+    var mult = g.elixirMult || 1;
+    var thr = Math.max(5, cfg.pushAt - (mult >= 2 ? 2 : 0) - (mult >= 3 ? 1 : 0));
+    if (!this.push) {
+      var enemyElixir = (g.players[this.enemy] && g.players[this.enemy].elixir) || 0;
+      var counter = cfg.counterPush && t < this.counterUntil && me.elixir >= 5 && me.elixir >= enemyElixir;
+      if (t < this.pushCooldownUntil || (me.elixir < thr && !counter)) return null;
+      this.push = { lane: this.pickLane(eTowers), start: t };
+    }
+    var P = this.push;
+    if (t - P.start > 45) {
+      this.push = null;
+      this.pushCooldownUntil = t + 4;
+      return null;
+    }
+    var L = P.lane, lx = PRINCESS_X[L];
+    var pr = eTowers.filter(function (tw) { return tw.towerType === 'princess' && laneOf(tw.x) === L; })[0];
+    var tankFy = pr ? PUSH_FY : POCKET_FY;
+
+    if (pr) {
+      var barrel = bestInHand(me, function (R) { return R.barrel && R.cost <= me.elixir; });
+      if (barrel) return { kind: 'spell', hIdx: barrel.idx, x: pr.x, y: pr.y, cost: barrel.R.cost, score: 0 };
+    }
+
+    var tank = myUnits.filter(function (u) { return laneOf(u.x) === L && isHeavy(u); })[0];
+    if (!tank) {
+      var heavyAny = bestInHand(me, function (R) { return R.troop && (R.tank || R.winCon); });
+      if (heavyAny) {
+        if (heavyAny.R.cost > me.elixir) return null;
+        return {
+          kind: 'troop', hIdx: heavyAny.idx, cost: heavyAny.R.cost, score: 0,
+          fx: lx, fy: (heavyAny.R.winCon && !heavyAny.R.tank) ? BRIDGE_FY : tankFy
+        };
+      }
+      if (me.elixir < thr) return null;
+      var filler = bestInHand(me, function (R) { return R.troop && R.cost <= me.elixir; });
+      if (!filler) return null;
+      return { kind: 'troop', hIdx: filler.idx, cost: filler.R.cost, score: 0, fx: lx, fy: tankFy };
+    }
+
+    var tfy = fyOf(team, tank.y);
+    if (tfy < OWN_FY) return null;   // tank has not reached the bridge yet
+    var support = bestInHand(me, function (R) {
+      return R.troop && !R.tank && !R.winCon && (R.ranged || R.splash) && R.cost <= me.elixir;
+    });
+    if (!support) {
+      support = bestInHand(me, function (R) {
+        return R.troop && !R.tank && !R.winCon && R.cost <= me.elixir && me.elixir >= thr;
+      });
+    }
+    if (!support) return null;
+    return {
+      kind: 'troop', hIdx: support.idx, cost: support.R.cost, score: 0,
+      fx: tank.x, fy: tfy - 2
+    };
+  };
+
+  // Spawn-spot search: the ideal frame point first, then a spiral of nearby points.
+  AI.prototype.spot = function (hIdx, fx, fy) {
+    var g = this.game, team = this.team;
+    fx = clamp(fx, 0.5, W - 0.5);
+    fy = clamp(fy, 0.5, H - 0.5);
+    for (var i = 0; i < SPIRAL.length; i++) {
+      var cx = clamp(fx + SPIRAL[i][0], 0.2, W - 0.2);
+      var cfy = clamp(fy + SPIRAL[i][1], 0.2, H - 0.2);
+      var ry = realY(team, cfy);
+      if (g.canDeploy(team, hIdx, cx, ry)) return { x: cx, y: ry };
+    }
+    return null;
+  };
+
+  AI.prototype.play = function (opt, t) {
+    var g = this.game, team = this.team, cfg = this.cfg;
+    var x = opt.x, y = opt.y;
+    if (opt.kind === 'troop') {
+      var s = this.spot(
+        opt.hIdx,
+        opt.fx + (this.rng() * 2 - 1) * cfg.jitter,
+        opt.fy + (this.rng() * 2 - 1) * cfg.jitter
+      );
+      if (!s) return false;
+      x = s.x;
+      y = s.y;
+    } else {
+      x = clamp(x + (this.rng() * 2 - 1) * cfg.jitter * 0.5, 0.2, W - 0.2);
+      y = clamp(y + (this.rng() * 2 - 1) * cfg.jitter * 0.5, 0.2, H - 0.2);
+      if (!g.canDeploy(team, opt.hIdx, x, y)) return false;
+    }
+    if (!g.deploy(team, opt.hIdx, x, y)) return false;
+    this.nextPlayT = t + this.rand(cfg.gap);
+    return true;
+  };
+
+  CR.AI = AI;
+})();
+
+if (typeof module !== 'undefined') module.exports = CR;
+
+</script>
+<script>
+// Canvas 2D renderer for the battle screen: layout, hit testing, and all drawing.
+// Layout and hit tests work in CSS px. The arena is drawn in tile units through a transform.
+var CR = (globalThis.CR = globalThis.CR || {});
+
+(function () {
+  'use strict';
+
+  var TAU = Math.PI * 2;
+  var W = 18;
+  var H = 32;
+  var TOP_BAR_H = 44;
+  var PANEL_MIN_H = 110;
+  var PANEL_TILES = 4.2;
+  var MARGIN = 10;
+  var CARD_GAP = 6;
+  var NEXT_W = 44;
+  var CARD_LIFT = 8;
+  var BAR_H = 22;
+  var BAR_TOP = 8;
+  var DEPLOY_CACHE_MS = 150;
+  var LUNGE_T = 0.15;
+  var GLYPH_CACHE_MAX = 300;
+  var FONT = '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+  var EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+
+  var COL = {
+    bg: '#0b1020',
+    topBar: '#111a2c',
+    panel: '#16203a',
+    panelEdge: '#2b3a5e',
+    grassA: '#8fd46a',
+    grassB: '#84c95d',
+    grassEdge: '#4d8c35',
+    river: '#3a9be0',
+    riverDeep: 'rgba(18,80,150,0.28)',
+    riverBank: '#2a72ae',
+    ripple: 'rgba(214,242,255,0.6)',
+    wood: '#a8733f',
+    woodDark: '#6c441d',
+    rail: '#4a2b11',
+    stone: '#d6d0bf',
+    stoneEdge: '#6c675a',
+    shadow: 'rgba(10,40,10,0.22)',
+    hpBack: 'rgba(0,0,0,0.6)',
+    invalid: 'rgba(255,58,58,0.34)',
+    invalidSolid: '#ff4d4d',
+    gold: '#ffe066',
+    elixir: '#c96bf5',
+    elixirHi: '#f2b8ff',
+    drop: '#9b3fd6',
+    segBack: 'rgba(0,0,0,0.45)',
+    cardArt: '#f6ecd2',
+    cardBand: '#2c2846',
+    crownOff: '#3b4459',
+    ice: '#a6e4ff',
+    text: '#f3f6fb',
+    textDim: '#94a1ba',
+    orange: '#ffa640'
+  };
+
+  var RARITY = {
+    common: '#9a7b57',
+    rare: '#e0932f',
+    epic: '#a25ce0',
+    legendary: '#f0c93a'
+  };
+
+  var FALLBACK_EMOJI = { skeleton: '💀', golemite: '🪨', speargoblin: '🔱', goblin: '👺' };
+  var TEAM_FALLBACK = [
+    { main: '#2f7cf6', dark: '#1a4fa8', light: '#9cc3ff' },
+    { main: '#e5413b', dark: '#9c1f1b', light: '#ffaaa6' }
+  ];
+
+  // ---------- helpers ----------
+
+  function clamp(v, a, b) {
+    return v < a ? a : v > b ? b : v;
+  }
+
+  function nowMs() {
+    return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  }
+
+  function teamColor(t) {
+    var tc = CR.TEAM_COLORS || TEAM_FALLBACK;
+    var i = t === 1 ? 1 : 0;
+    return tc[i] || TEAM_FALLBACK[i];
+  }
+
+  function cardDef(id) {
+    return (id != null && CR.CARDS && CR.CARDS[id]) || null;
+  }
+
+  function unitDef(id) {
+    return (id != null && CR.UNITS && CR.UNITS[id]) || null;
+  }
+
+  var unitEmojiMap = null;
+  function unitEmoji(unitId) {
+    if (!unitEmojiMap) {
+      unitEmojiMap = {};
+      var cards = CR.CARDS || {};
+      for (var k in cards) {
+        var c = cards[k];
+        if (c && c.unit && unitEmojiMap[c.unit] === undefined) unitEmojiMap[c.unit] = c.emoji;
+      }
+    }
+    return unitEmojiMap[unitId] || FALLBACK_EMOJI[unitId] || '?';
+  }
+
+  function towerSize(type) {
+    var spec = CR.TOWERS && CR.TOWERS[type];
+    if (spec && spec.size) return spec.size;
+    return type === 'king' ? 4 : 3;
+  }
+
+  function towerKey(e) {
+    return e.id != null ? 'id' + e.id : e.team + ':' + (e.towerType || '') + ':' + e.lane;
+  }
+
+  function entAlive(e) {
+    return !e.dead && !(e.hp <= 0);
+  }
+
+  function radiusOf(e) {
+    var def = unitDef(e.unitId) || {};
+    var r = e.r || def.r || 0.5;
+    // Troops draw larger than their collision circle so emoji stay legible on a phone.
+    return e.kind === 'troop' ? r * 1.2 + 0.1 : r;
+  }
+
+  function byY(a, b) {
+    return a.y - b.y;
+  }
+
+  function fmtTime(s) {
+    var t = Math.max(0, Math.ceil(s || 0));
+    var m = Math.floor(t / 60);
+    var r = t % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  function arenaCfg() {
+    var a = CR.ARENA || {};
+    return {
+      RIVER_TOP: a.RIVER_TOP != null ? a.RIVER_TOP : 15,
+      RIVER_BOTTOM: a.RIVER_BOTTOM != null ? a.RIVER_BOTTOM : 17,
+      BRIDGES: a.BRIDGES || [{ x: 3.5, halfWidth: 1.5 }, { x: 14.5, halfWidth: 1.5 }]
+    };
+  }
+
+  function overBridge(cfg, x) {
+    for (var i = 0; i < cfg.BRIDGES.length; i++) {
+      var b = cfg.BRIDGES[i];
+      if (x > b.x - b.halfWidth && x < b.x + b.halfWidth) return true;
+    }
+    return false;
+  }
+
+  // Rounded rectangle path. Starts its own path.
+  function rrPath(ctx, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // Elixir drop: point at the top, round bottom. Starts its own path.
+  function dropPath(ctx, cx, cy, r) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 1.3);
+    ctx.bezierCurveTo(cx + r * 0.35, cy - r * 0.6, cx + r, cy - r * 0.2, cx + r, cy + r * 0.2);
+    ctx.arc(cx, cy + r * 0.2, r, 0, Math.PI, false);
+    ctx.bezierCurveTo(cx - r, cy - r * 0.2, cx - r * 0.35, cy - r * 0.6, cx, cy - r * 1.3);
+    ctx.closePath();
+  }
+
+  // Crown: flat base, three points. Starts its own path.
+  function crownPath(ctx, x, y, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x, y + h * 0.3);
+    ctx.lineTo(x + w * 0.25, y + h * 0.6);
+    ctx.lineTo(x + w * 0.5, y);
+    ctx.lineTo(x + w * 0.75, y + h * 0.6);
+    ctx.lineTo(x + w, y + h * 0.3);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+  }
+
+  function uiText(ctx, str, x, y, px, color, weight, align, baseline) {
+    ctx.font = (weight || '500') + ' ' + px + 'px ' + FONT;
+    ctx.fillStyle = color;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = baseline || 'middle';
+    ctx.fillText(str, x, y);
+  }
+
+  // Text in tile units. Font is built at 100x and scaled down so small sizes stay exact.
+  function arenaText(ctx, str, x, y, size, color, opts) {
+    opts = opts || {};
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(0.01, 0.01);
+    ctx.font = (opts.bold ? '700 ' : '600 ') + Math.round(size * 100) + 'px ' + FONT;
+    ctx.textAlign = opts.align || 'center';
+    ctx.textBaseline = opts.baseline || 'middle';
+    if (opts.outline) {
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = size * 12;
+      ctx.strokeStyle = opts.outline;
+      ctx.strokeText(str, 0, 0);
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(str, 0, 0);
+    ctx.restore();
+  }
+
+  // Offsets for a multi-unit drop, in tiles around the drop point.
+  function formation(n) {
+    var out = [];
+    if (n <= 1) {
+      out.push([0, 0]);
+    } else if (n === 2) {
+      out.push([-0.4, 0], [0.4, 0]);
+    } else if (n === 3) {
+      out.push([0, -0.35], [-0.4, 0.3], [0.4, 0.3]);
+    } else {
+      var rad = n <= 5 ? 0.8 : 0.35 * Math.sqrt(n);
+      for (var k = 0; k < n; k++) {
+        var a = (k * TAU) / n;
+        out.push([Math.cos(a) * rad, Math.sin(a) * rad]);
+      }
+    }
+    return out;
+  }
+
+  // Static arena layer: grass, border, river base and bridges. Painted once per resize.
+  function paintArenaStatic(g, cfg) {
+    var i, j;
+    for (j = 0; j < H; j++) {
+      for (i = 0; i < W; i++) {
+        g.fillStyle = (i + j) & 1 ? COL.grassA : COL.grassB;
+        g.fillRect(i, j, 1, 1);
+      }
+    }
+    g.fillStyle = COL.grassEdge;
+    g.fillRect(0, 0, W, 0.35);
+    g.fillRect(0, H - 0.35, W, 0.35);
+    g.fillRect(0, 0, 0.35, H);
+    g.fillRect(W - 0.35, 0, 0.35, H);
+
+    var rt = cfg.RIVER_TOP;
+    var rb = cfg.RIVER_BOTTOM;
+    g.fillStyle = COL.river;
+    g.fillRect(0, rt, W, rb - rt);
+    g.fillStyle = COL.riverDeep;
+    g.fillRect(0, rt + (rb - rt) / 2, W, (rb - rt) / 2);
+    g.fillStyle = COL.riverBank;
+    g.fillRect(0, rt - 0.08, W, 0.08);
+    g.fillRect(0, rb, W, 0.08);
+
+    for (i = 0; i < cfg.BRIDGES.length; i++) {
+      var b = cfg.BRIDGES[i];
+      var x0 = b.x - b.halfWidth;
+      var bw = b.halfWidth * 2;
+      var y0 = rt - 0.25;
+      var bh = rb - rt + 0.5;
+      g.fillStyle = COL.woodDark;
+      g.fillRect(x0 - 0.05, y0, bw + 0.1, bh);
+      g.fillStyle = COL.wood;
+      g.fillRect(x0, y0, bw, bh);
+      g.fillStyle = COL.woodDark;
+      for (var py = y0 + 0.2; py < y0 + bh - 0.1; py += 0.32) {
+        g.fillRect(x0, py, bw, 0.06);
+      }
+      g.fillStyle = COL.rail;
+      g.fillRect(x0, y0, 0.12, bh);
+      g.fillRect(x0 + bw - 0.12, y0, 0.12, bh);
+    }
+  }
+
+  // ---------- renderer ----------
+
+  function Renderer(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.dpr = 1;
+    this.cssW = 0;
+    this.cssH = 0;
+    this.insets = { top: 0, bottom: 0, left: 0, right: 0 };
+    this.T = 0;
+    this.ox = 0;
+    this.oy = 0;
+    this.panelTop = 0;
+    this.panelH = PANEL_MIN_H;
+    this.cardRects = [];
+    this.nextRect = null;
+    this.barRect = null;
+    this._cfg = arenaCfg();
+    this._ppu = 1;
+    this._time = 0;
+    this._selected = -1;
+    this._bg = null;
+    this._glyphs = {};
+    this._glyphCount = 0;
+    this._towers = {};
+    this._towerGame = null;
+    this._towerTime = 0;
+    this._dz = new Uint8Array(W * H);
+    this._dzKey = null;
+    this._dzGame = null;
+    this._dzAt = -1e9;
+    this._gBuf = [];
+    this._aBuf = [];
+  }
+
+  Renderer.prototype.resize = function (cssW, cssH, dpr, insets) {
+    var ins = insets || {};
+    var I = (this.insets = {
+      top: ins.top || 0,
+      bottom: ins.bottom || 0,
+      left: ins.left || 0,
+      right: ins.right || 0
+    });
+    this.dpr = dpr || 1;
+    this.cssW = cssW;
+    this.cssH = cssH;
+    this._cfg = arenaCfg();
+
+    var canvas = this.canvas;
+    canvas.width = Math.max(1, Math.round(cssW * this.dpr));
+    canvas.height = Math.max(1, Math.round(cssH * this.dpr));
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+
+    var availW = cssW - I.left - I.right;
+    var vertAvail = function (ph) {
+      return cssH - I.top - I.bottom - TOP_BAR_H - ph;
+    };
+    var panelH = PANEL_MIN_H;
+    var T = 1;
+    var i;
+    for (i = 0; i < 4; i++) {
+      T = Math.max(1, Math.min(availW / W, vertAvail(panelH) / H));
+      panelH = Math.max(PANEL_MIN_H, PANEL_TILES * T);
+    }
+    this.T = T;
+    this.panelH = panelH;
+    this.panelTop = cssH - I.bottom - panelH;
+    this.ox = I.left + (availW - W * T) / 2;
+    var bandTop = I.top + TOP_BAR_H;
+    this.oy = bandTop + (this.panelTop - bandTop - H * T) / 2;
+
+    var cardsY = this.panelTop + BAR_TOP + BAR_H + 8;
+    var cardH = Math.max(24, this.panelTop + panelH - 10 - cardsY);
+    var nextX = I.left + MARGIN;
+    var cardsX0 = nextX + NEXT_W + 8;
+    var cardsX1 = cssW - I.right - MARGIN;
+    var cardW = (cardsX1 - cardsX0 - 3 * CARD_GAP) / 4;
+    this.cardRects = [];
+    for (i = 0; i < 4; i++) {
+      this.cardRects.push({ x: cardsX0 + i * (cardW + CARD_GAP), y: cardsY, w: cardW, h: cardH });
+    }
+    this.nextRect = { x: nextX, y: cardsY + 12, w: NEXT_W, h: cardH - 12 };
+    this.barRect = { x: I.left + MARGIN, y: this.panelTop + BAR_TOP, w: availW - 2 * MARGIN, h: BAR_H };
+
+    if (!this._bg) this._bg = document.createElement('canvas');
+    this._bg.width = Math.max(1, Math.ceil(W * T * this.dpr));
+    this._bg.height = Math.max(1, Math.ceil(H * T * this.dpr));
+    var g = this._bg.getContext('2d');
+    g.setTransform(this.dpr * T, 0, 0, this.dpr * T, 0, 0);
+    paintArenaStatic(g, this._cfg);
+
+    this._glyphs = {};
+    this._glyphCount = 0;
+  };
+
+  // Coordinates: canvas CSS px -> tiles and back.
+  Renderer.prototype.screenToTile = function (px, py) {
+    return { x: (px - this.ox) / this.T, y: (py - this.oy) / this.T };
+  };
+
+  Renderer.prototype.tileToScreen = function (x, y) {
+    return { x: this.ox + x * this.T, y: this.oy + y * this.T };
+  };
+
+  Renderer.prototype.isInArena = function (px, py) {
+    var t = this.screenToTile(px, py);
+    return t.x >= 0 && t.x <= W && t.y >= 0 && t.y <= H;
+  };
+
+  Renderer.prototype.hitTestCard = function (px, py) {
+    var rs = this.cardRects;
+    for (var i = 0; i < rs.length; i++) {
+      var r = rs[i];
+      var top = i === this._selected ? r.y - CARD_LIFT : r.y;
+      if (px >= r.x && px <= r.x + r.w && py >= top && py <= r.y + r.h) return i;
+    }
+    return -1;
+  };
+
+  // ---------- transforms and glyphs ----------
+
+  Renderer.prototype._arenaXform = function () {
+    var d = this.dpr;
+    var T = this.T;
+    this.ctx.setTransform(d * T, 0, 0, d * T, d * this.ox, d * this.oy);
+    this._ppu = d * T;
+  };
+
+  Renderer.prototype._uiXform = function () {
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this._ppu = this.dpr;
+  };
+
+  Renderer.prototype._glyph = function (emoji, px) {
+    var key = emoji + '|' + px;
+    var c = this._glyphs[key];
+    if (c) return c;
+    if (this._glyphCount >= GLYPH_CACHE_MAX) {
+      this._glyphs = {};
+      this._glyphCount = 0;
+    }
+    c = document.createElement('canvas');
+    c.width = px;
+    c.height = px;
+    var g = c.getContext('2d');
+    g.font = Math.round(px * 0.9) + 'px ' + EMOJI_FONT;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(emoji, px / 2, px / 2 + px * 0.04);
+    this._glyphs[key] = c;
+    this._glyphCount++;
+    return c;
+  };
+
+  // Draws an emoji centred at (cx, cy). size is the em size in current user units.
+  Renderer.prototype._emoji = function (emoji, cx, cy, size) {
+    var ppu = this._ppu;
+    var px = Math.max(8, Math.round(size * ppu));
+    var c = this._glyph(emoji || '?', px);
+    var s = px / ppu;
+    this.ctx.drawImage(c, cx - s / 2, cy - s / 2, s, s);
+  };
+
+  Renderer.prototype._bar = function (cx, y, w, frac, color) {
+    var ctx = this.ctx;
+    var h = 0.14;
+    ctx.fillStyle = COL.hpBack;
+    ctx.fillRect(cx - w / 2 - 0.03, y - 0.03, w + 0.06, h + 0.06);
+    ctx.fillStyle = color;
+    ctx.fillRect(cx - w / 2, y, w * clamp(frac, 0, 1), h);
+  };
+
+  // ---------- main draw ----------
+
+  Renderer.prototype.draw = function (game, uiState) {
+    var ctx = this.ctx;
+    uiState = uiState || {};
+    var team = uiState.team === 1 ? 1 : 0;
+    var sel = typeof uiState.selected === 'number' ? uiState.selected : -1;
+    this._selected = sel;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = COL.bg;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this._bg || !this.T) return;
+    ctx.drawImage(this._bg, Math.round(this.ox * this.dpr), Math.round(this.oy * this.dpr));
+
+    var time = game && game.time ? game.time : 0;
+    this._time = time;
+    var pl = game && game.players ? game.players[team] : null;
+    var cardId = pl && pl.hand && sel >= 0 ? pl.hand[sel] : null;
+    var cd = cardDef(cardId);
+
+    if (game) {
+      this._trackTowers(game);
+      this._sortEntities(game.entities);
+    }
+
+    this._arenaXform();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+
+    this._drawRipples(time);
+    this._drawRubble();
+    if (game && cd && cd.type !== 'spell') this._drawDeployZone(game, team, cardId);
+    if (game) {
+      this._drawShadows();
+      this._drawGroundStack();
+      this._drawBeams();
+      this._drawProjectiles(game);
+      this._drawAir();
+      this._drawSpells(game, time);
+      this._drawEffects(game);
+      if (uiState.drag && sel >= 0 && cd) this._drawDragGhost(game, team, uiState, cardId, cd);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    this._uiXform();
+    this._drawTopBar(game, team);
+    this._drawPanel(game, team, uiState);
+
+    if (game && uiState.drag && sel >= 0 && cd && !this.isInArena(uiState.drag.x, uiState.drag.y)) {
+      var rect = this.cardRects[sel];
+      var w = rect.w * 1.1;
+      var h = rect.h * 1.1;
+      this._card(cardId, uiState.drag.x - w / 2, uiState.drag.y - h / 2, w, h, { selected: true });
+    }
+  };
+
+  // ---------- towers ----------
+
+  Renderer.prototype._trackTowers = function (game) {
+    var ents = game.entities || [];
+    if (this._towerGame !== game || (game.time || 0) < this._towerTime) {
+      this._towerGame = game;
+      this._towers = {};
+    }
+    this._towerTime = game.time || 0;
+    var seen = {};
+    for (var i = 0; i < ents.length; i++) {
+      var e = ents[i];
+      if (!e || e.kind !== 'tower') continue;
+      var key = towerKey(e);
+      seen[key] = true;
+      var rec = this._towers[key];
+      if (!rec) {
+        var type = e.towerType || (e.unitId === 'king' ? 'king' : 'princess');
+        rec = this._towers[key] = { type: type, size: towerSize(type) };
+      }
+      rec.x = e.x;
+      rec.y = e.y;
+      rec.team = e.team;
+      rec.alive = entAlive(e);
+    }
+    for (var k in this._towers) {
+      if (!seen[k]) this._towers[k].alive = false;
+    }
+  };
+
+  Renderer.prototype._drawRubble = function () {
+    var ctx = this.ctx;
+    for (var k in this._towers) {
+      var r = this._towers[k];
+      if (r.alive || r.x == null) continue;
+      var rad = r.size * 0.42;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y, rad * 1.1, rad * 0.75, 0, 0, TAU);
+      ctx.fillStyle = 'rgba(40,40,40,0.35)';
+      ctx.fill();
+      ctx.fillStyle = '#5f5f5f';
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, rad * 0.5, 0, TAU);
+      ctx.fill();
+      for (var s = 0; s < 6; s++) {
+        var a = s * (TAU / 6) + 0.4;
+        var sx = r.x + Math.cos(a) * rad * 0.7;
+        var sy = r.y + Math.sin(a) * rad * 0.55;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 0.22, 0, TAU);
+        ctx.fillStyle = s % 2 ? '#9a9a9a' : '#7d7d7d';
+        ctx.fill();
+        ctx.lineWidth = 0.05;
+        ctx.strokeStyle = '#3f3f3f';
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  // Splits entities into ground (towers, buildings, ground troops) and air buffers, sorted by y.
+  Renderer.prototype._sortEntities = function (ents) {
+    var g = this._gBuf;
+    var a = this._aBuf;
+    g.length = 0;
+    a.length = 0;
+    ents = ents || [];
+    for (var i = 0; i < ents.length; i++) {
+      var e = ents[i];
+      if (!e || e.dead) continue;
+      if (e.kind === 'tower') {
+        if (entAlive(e)) g.push(e);
+        continue;
+      }
+      if (!entAlive(e)) continue;
+      if (e.kind === 'building') g.push(e);
+      else if (e.air) a.push(e);
+      else g.push(e);
+    }
+    g.sort(byY);
+    a.sort(byY);
+  };
+
+  // ---------- arena layers ----------
+
+  Renderer.prototype._drawRipples = function (time) {
+    var ctx = this.ctx;
+    var cfg = this._cfg;
+    var rt = cfg.RIVER_TOP;
+    var rb = cfg.RIVER_BOTTOM;
+    ctx.beginPath();
+    ctx.strokeStyle = COL.ripple;
+    ctx.lineWidth = 0.06;
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 12; i++) {
+      var sp = 0.5 + (i % 4) * 0.18;
+      var x = ((i * 2.37 + time * sp) % (W + 2)) - 1;
+      var y = rt + 0.3 + ((i * 0.618) % 1) * (rb - rt - 0.6);
+      if (overBridge(cfg, x)) continue;
+      var len = 0.7 + (i % 3) * 0.25;
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + len / 2, y - 0.14, x + len, y);
+    }
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  };
+
+  Renderer.prototype._deployGrid = function (game, team, cardId) {
+    var fn = game.isInDeployZone;
+    if (typeof fn !== 'function') return null;
+    var key = team + '|' + cardId;
+    var now = nowMs();
+    if (this._dzGame === game && this._dzKey === key && now - this._dzAt < DEPLOY_CACHE_MS) {
+      return this._dz;
+    }
+    var dz = this._dz;
+    for (var j = 0; j < H; j++) {
+      for (var i = 0; i < W; i++) {
+        dz[j * W + i] = fn.call(game, team, cardId, i + 0.5, j + 0.5) ? 1 : 0;
+      }
+    }
+    this._dzGame = game;
+    this._dzKey = key;
+    this._dzAt = now;
+    return dz;
+  };
+
+  Renderer.prototype._drawDeployZone = function (game, team, cardId) {
+    var dz = this._deployGrid(game, team, cardId);
+    if (!dz) return;
+    var ctx = this.ctx;
+    ctx.beginPath();
+    for (var j = 0; j < H; j++) {
+      for (var i = 0; i < W; i++) {
+        if (!dz[j * W + i]) ctx.rect(i, j, 1, 1);
+      }
+    }
+    ctx.fillStyle = COL.invalid;
+    ctx.fill();
+  };
+
+  Renderer.prototype._drawShadows = function () {
+    var ctx = this.ctx;
+    var g = this._gBuf;
+    var a = this._aBuf;
+    ctx.beginPath();
+    ctx.fillStyle = COL.shadow;
+    var i, e, r;
+    for (i = 0; i < g.length; i++) {
+      e = g[i];
+      if (e.kind === 'tower') continue;
+      r = radiusOf(e);
+      ctx.moveTo(e.x + r * 0.95, e.y + r * 0.3);
+      ctx.ellipse(e.x, e.y + r * 0.3, r * 0.95, r * 0.5, 0, 0, TAU);
+    }
+    for (i = 0; i < a.length; i++) {
+      e = a[i];
+      r = radiusOf(e);
+      ctx.moveTo(e.x + r * 0.95, e.y + r * 0.3);
+      ctx.ellipse(e.x, e.y + r * 0.3, r * 0.95, r * 0.5, 0, 0, TAU);
+    }
+    ctx.fill();
+  };
+
+  Renderer.prototype._drawGroundStack = function () {
+    var g = this._gBuf;
+    for (var i = 0; i < g.length; i++) {
+      var e = g[i];
+      if (e.kind === 'tower') this._drawTower(e);
+      else if (e.kind === 'building') this._drawBody(e, 0, true, 1.3, true);
+      else this._drawBody(e, 0, false, 1.5, false);
+    }
+    this.ctx.globalAlpha = 1;
+  };
+
+  Renderer.prototype._drawAir = function () {
+    var a = this._aBuf;
+    for (var i = 0; i < a.length; i++) {
+      this._drawBody(a[i], 0.6, false, 1.5, false);
+    }
+    this.ctx.globalAlpha = 1;
+  };
+
+  // Shared body drawing for troops and buildings.
+  Renderer.prototype._drawBody = function (e, lift, square, emojiK, alwaysBar) {
+    var ctx = this.ctx;
+    var time = this._time;
+    var r = radiusOf(e);
+    var team = teamColor(e.team);
+    var x = e.x;
+    var y = e.y - lift;
+
+    // Lunge toward the target for a short time after an attack.
+    var age = e.lastAttackT != null ? time - e.lastAttackT : -1;
+    if (age >= 0 && age < LUNGE_T && e.target && typeof e.target === 'object') {
+      var dx = e.target.x - e.x;
+      var dy = e.target.y - e.y;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 0.01) {
+        var amt = Math.min(0.25, r * 0.5) * Math.sin((Math.PI * age) / LUNGE_T);
+        x += (dx / d) * amt;
+        y += (dy / d) * amt;
+      }
+    }
+
+    var deploying = e.deployT > 0;
+    var frozen = e.freezeT > 0;
+    ctx.globalAlpha = deploying ? 0.5 : 1;
+
+    if (square) {
+      rrPath(ctx, x - r, y - r, r * 2, r * 2, r * 0.3);
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+    }
+    ctx.fillStyle = frozen ? COL.ice : team.main;
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.05, r * 0.16);
+    ctx.strokeStyle = frozen ? '#3d7fb0' : team.dark;
+    ctx.stroke();
+
+    this._emoji(unitEmoji(e.unitId), x, y, Math.max(0.36, emojiK * r));
+
+    if (e.charging) {
+      var facing = typeof e.facing === 'number' ? e.facing : e.team === 1 ? Math.PI / 2 : -Math.PI / 2;
+      var bx = Math.cos(facing + Math.PI);
+      var by = Math.sin(facing + Math.PI);
+      var px = -by;
+      var py = bx;
+      ctx.beginPath();
+      for (var k = -1; k <= 1; k++) {
+        var o = k * 0.22;
+        var sx = x + bx * (r + 0.08) + px * o;
+        var sy = y + by * (r + 0.08) + py * o;
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + bx * 0.55, sy + by * 0.55);
+      }
+      ctx.lineWidth = 0.06;
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.stroke();
+    }
+
+    if (e.stunT > 0) {
+      ctx.fillStyle = '#ffe83a';
+      for (var s = 0; s < 3; s++) {
+        var a = time * 7 + (s * TAU) / 3;
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(a) * r * 0.9, y - r * 0.9 - 0.12 + Math.sin(a * 1.3) * 0.08, 0.07, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    if (deploying) {
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 0.14, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(e.deployT, 0, 1));
+      ctx.lineWidth = 0.08;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = deploying ? 0.5 : 1;
+    if (e.maxHp > 0 && e.hp > 0 && (alwaysBar || e.hp < e.maxHp)) {
+      var bw = square ? r * 2.4 : Math.max(0.7, r * 2.2);
+      this._bar(x, y - r - 0.34, bw, e.hp / e.maxHp, team.main);
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  Renderer.prototype._drawTower = function (e) {
+    var ctx = this.ctx;
+    var type = e.towerType || (e.unitId === 'king' ? 'king' : 'princess');
+    var size = towerSize(type);
+    var half = size / 2;
+    var x = e.x;
+    var y = e.y;
+    var team = teamColor(e.team);
+    var sign = e.team === 1 ? 1 : -1;
+    var active = type !== 'king' || e.active !== false;
+    ctx.globalAlpha = active ? 1 : 0.65;
+
+    // Crenellations on the top and bottom edges, then the stone block.
+    ctx.fillStyle = COL.stone;
+    ctx.strokeStyle = COL.stoneEdge;
+    ctx.lineWidth = 0.08;
+    var i;
+    for (i = 0; i < size; i++) {
+      var mx = x - half + i + 0.2;
+      ctx.fillRect(mx, y - half - 0.3, 0.6, 0.34);
+      ctx.strokeRect(mx, y - half - 0.3, 0.6, 0.34);
+      ctx.fillRect(mx, y + half - 0.04, 0.6, 0.34);
+      ctx.strokeRect(mx, y + half - 0.04, 0.6, 0.34);
+    }
+    ctx.fillRect(x - half, y - half, size, size);
+    ctx.strokeRect(x - half, y - half, size, size);
+
+    var roof = size - (type === 'king' ? 1.2 : 1.0);
+    rrPath(ctx, x - roof / 2, y - roof / 2, roof, roof, 0.25);
+    ctx.fillStyle = team.main;
+    ctx.fill();
+    ctx.lineWidth = 0.1;
+    ctx.strokeStyle = team.dark;
+    ctx.stroke();
+
+    if (type === 'king') {
+      this._emoji('👑', x, y, 1.25);
+    } else {
+      this._emoji('🏹', x, y, 0.95);
+    }
+
+    if (!active) {
+      arenaText(ctx, 'z', x + half * 0.8, y - half * 0.8, 0.7, '#ffffff', { bold: true, outline: '#222' });
+    }
+
+    // Health bar on the side facing the player's own edge is drawn on the enemy side (outside the arena top).
+    var maxHp = e.maxHp > 0 ? e.maxHp : 1;
+    var frac = e.hp / maxHp;
+    var bw = size * 0.95;
+    var barY = sign < 0 ? y - half - 0.5 : y + half + 0.2;
+    this._bar(x, barY, bw, frac, team.main);
+    var txt = String(Math.max(0, Math.ceil(e.hp || 0)));
+    if (sign < 0) {
+      arenaText(ctx, txt, x, barY - 0.08, 0.42, COL.text, { bold: true, outline: 'rgba(0,0,0,0.7)', baseline: 'bottom' });
+    } else {
+      arenaText(ctx, txt, x, barY + 0.14 + 0.08, 0.42, COL.text, { bold: true, outline: 'rgba(0,0,0,0.7)', baseline: 'top' });
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  Renderer.prototype._drawBeams = function () {
+    var ctx = this.ctx;
+    var g = this._gBuf;
+    for (var i = 0; i < g.length; i++) {
+      var e = g[i];
+      if (e.kind !== 'building' || typeof e.beamTarget !== 'object' || !e.beamTarget) continue;
+      var t = e.beamTarget;
+      var lift = t.air ? 0.6 : 0;
+      var stage = e.rampStage | 0;
+      var w = 0.12 + 0.08 * stage;
+      var outer = stage >= 2 ? '#ff3b1f' : stage === 1 ? '#ff6a2a' : '#ff8a3a';
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.lineTo(t.x, t.y - lift);
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = outer;
+      ctx.lineWidth = w + 0.1;
+      ctx.stroke();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = '#ffe27a';
+      ctx.lineWidth = w * 0.45;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+  };
+
+  Renderer.prototype._drawProjectiles = function (game) {
+    var list = game.projectiles;
+    if (!list || !list.length) return;
+    var ctx = this.ctx;
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (!p) continue;
+      var dx;
+      var dy;
+      var tgt = p.target;
+      if (tgt && typeof tgt === 'object' && tgt.x !== undefined) {
+        dx = tgt.x - p.x;
+        dy = tgt.y - p.y;
+      } else {
+        dx = (p.tx != null ? p.tx : p.x) - p.x;
+        dy = (p.ty != null ? p.ty : p.y) - p.y;
+      }
+      var ang = Math.atan2(dy, dx);
+      if (!isFinite(ang)) ang = 0;
+      var c = Math.cos(ang);
+      var s = Math.sin(ang);
+      var x = p.x;
+      var y = p.y;
+      ctx.globalAlpha = 1;
+      switch (p.kind) {
+        case 'arrow':
+          ctx.beginPath();
+          ctx.moveTo(x - c * 0.3, y - s * 0.3);
+          ctx.lineTo(x + c * 0.3, y + s * 0.3);
+          ctx.lineWidth = 0.07;
+          ctx.strokeStyle = '#4d3418';
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x + c * 0.3, y + s * 0.3, 0.06, 0, TAU);
+          ctx.fillStyle = '#c9ced6';
+          ctx.fill();
+          break;
+        case 'bullet':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.09, 0, TAU);
+          ctx.fillStyle = '#1d1d22';
+          ctx.fill();
+          break;
+        case 'cannonball':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.22, 0, TAU);
+          ctx.fillStyle = '#15151a';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x - 0.07, y - 0.07, 0.06, 0, TAU);
+          ctx.fillStyle = '#5a5a66';
+          ctx.fill();
+          break;
+        case 'fire':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.34, 0, TAU);
+          ctx.fillStyle = 'rgba(255,120,30,0.45)';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 0.2, 0, TAU);
+          ctx.fillStyle = '#ffb22e';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 0.08, 0, TAU);
+          ctx.fillStyle = '#fff3b0';
+          ctx.fill();
+          break;
+        case 'goo':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.2, 0, TAU);
+          ctx.fillStyle = '#9a4fd8';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x - c * 0.12, y - s * 0.12, 0.08, 0, TAU);
+          ctx.fillStyle = '#b97cf0';
+          ctx.fill();
+          break;
+        case 'spear':
+          ctx.beginPath();
+          ctx.moveTo(x - c * 0.4, y - s * 0.4);
+          ctx.lineTo(x + c * 0.4, y + s * 0.4);
+          ctx.lineWidth = 0.08;
+          ctx.strokeStyle = '#7a5226';
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x + c * 0.4, y + s * 0.4, 0.07, 0, TAU);
+          ctx.fillStyle = '#c9ced6';
+          ctx.fill();
+          break;
+        case 'bomb':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.2, 0, TAU);
+          ctx.fillStyle = '#202024';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(x, y - 0.2);
+          ctx.lineTo(x + 0.08, y - 0.32);
+          ctx.lineWidth = 0.05;
+          ctx.strokeStyle = '#8a6a3a';
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x + 0.08, y - 0.32, 0.05, 0, TAU);
+          ctx.fillStyle = '#ffb020';
+          ctx.fill();
+          break;
+        case 'magic':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.3, 0, TAU);
+          ctx.fillStyle = 'rgba(255,110,210,0.4)';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 0.16, 0, TAU);
+          ctx.fillStyle = '#ff8ad8';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 0.05, 0, TAU);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          break;
+        case 'ice':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.26, 0, TAU);
+          ctx.fillStyle = 'rgba(160,230,255,0.5)';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y, 0.14, 0, TAU);
+          ctx.fillStyle = '#c7f1ff';
+          ctx.fill();
+          break;
+        default:
+          ctx.beginPath();
+          ctx.arc(x, y, 0.1, 0, TAU);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+      }
+    }
+  };
+
+  Renderer.prototype._drawSpells = function (game, time) {
+    var list = game.spells;
+    if (!list || !list.length) return;
+    var ctx = this.ctx;
+    for (var i = 0; i < list.length; i++) {
+      var sp = list[i];
+      if (!sp) continue;
+      var card = cardDef(sp.cardId) || {};
+      ctx.globalAlpha = 1;
+      if (sp.kind === 'poison') {
+        var rad = sp.radius || card.radius || 3.5;
+        var pulse = 0.5 + 0.5 * Math.sin(time * 4 + sp.x + sp.y);
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, rad, 0, TAU);
+        ctx.fillStyle = 'rgba(120,220,70,' + (0.22 + 0.06 * pulse).toFixed(3) + ')';
+        ctx.fill();
+        ctx.lineWidth = 0.1;
+        ctx.strokeStyle = 'rgba(90,180,40,0.8)';
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(200,255,150,0.6)';
+        for (var k = 0; k < 4; k++) {
+          var a = time * 0.5 + k * 1.57;
+          ctx.beginPath();
+          ctx.arc(sp.x + Math.cos(a) * rad * 0.6, sp.y + Math.sin(a) * rad * 0.6, 0.12, 0, TAU);
+          ctx.fill();
+        }
+      } else if (sp.kind === 'log') {
+        var lg = card.log || {};
+        var w = lg.width || 3.9;
+        var th = 0.9;
+        var x0 = sp.x - w / 2;
+        var y0 = sp.y - th / 2;
+        rrPath(ctx, x0, y0, w, th, th / 2);
+        ctx.fillStyle = '#8b5a2b';
+        ctx.fill();
+        ctx.lineWidth = 0.07;
+        ctx.strokeStyle = '#4e2f14';
+        ctx.stroke();
+        // Bark marks slide along the log to suggest rolling.
+        var phase = (time * (lg.speed || 4.6)) % 1.0;
+        ctx.beginPath();
+        for (var m = 0; m < 4; m++) {
+          var mx = x0 + ((m + phase) * w) / 4;
+          ctx.moveTo(mx, y0 + 0.12);
+          ctx.lineTo(mx, y0 + th - 0.12);
+        }
+        ctx.lineWidth = 0.06;
+        ctx.strokeStyle = '#c08a52';
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.ellipse(sp.x, sp.y, 0.42, 0.2, 0, 0, TAU);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fill();
+        this._emoji(card.emoji || '?', sp.x, sp.y - 0.7, 1.0);
+      }
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  Renderer.prototype._drawEffects = function (game) {
+    var list = game.effects;
+    if (!list || !list.length) return;
+    var ctx = this.ctx;
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      if (!f) continue;
+      var dur = f.dur > 0 ? f.dur : 0.5;
+      var t = f.t || 0;
+      var p = clamp(t / dur, 0, 1);
+      var a = 1 - p;
+      var R = f.radius > 0 ? f.radius : 0.6;
+      var x = f.x;
+      var y = f.y;
+      var k;
+      ctx.save();
+      ctx.globalAlpha = a;
+      switch (f.type) {
+        case 'hit':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.2 + R * p, 0, TAU);
+          ctx.lineWidth = 0.1 * a + 0.03;
+          ctx.strokeStyle = '#fff3b0';
+          ctx.stroke();
+          break;
+        case 'splash':
+          ctx.beginPath();
+          ctx.arc(x, y, R * (0.3 + 0.7 * p), 0, TAU);
+          ctx.fillStyle = 'rgba(255,160,60,0.25)';
+          ctx.fill();
+          ctx.lineWidth = 0.12;
+          ctx.strokeStyle = '#ff9a3c';
+          ctx.stroke();
+          break;
+        case 'death':
+          ctx.beginPath();
+          ctx.arc(x, y, 0.25 + R * 0.6 * p, 0, TAU);
+          ctx.fillStyle = 'rgba(230,230,230,0.6)';
+          ctx.fill();
+          ctx.lineWidth = 0.06;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+          break;
+        case 'zap': {
+          var flick = Math.floor(t * 30);
+          var seed = f.seed != null ? f.seed : i;
+          ctx.lineJoin = 'round';
+          for (var pass = 0; pass < 2; pass++) {
+            ctx.beginPath();
+            for (var b = 0; b < 3; b++) {
+              var ang = b * (TAU / 3) + seed * 0.7 + flick * 0.9;
+              for (k = 0; k <= 4; k++) {
+                var dist = R * (k / 4) * 0.95;
+                var jit = Math.sin(flick * 12.9 + b * 4.1 + k * 2.7) * 0.22 * (k % 2 ? 1 : -1);
+                var px = x + Math.cos(ang) * dist - Math.sin(ang) * jit;
+                var py = y + Math.sin(ang) * dist + Math.cos(ang) * jit;
+                if (k === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+            }
+            ctx.lineWidth = pass === 0 ? 0.14 : 0.05;
+            ctx.strokeStyle = pass === 0 ? '#7fdcff' : '#ffffff';
+            ctx.stroke();
+          }
+          break;
+        }
+        case 'arrows':
+          ctx.beginPath();
+          for (k = 0; k < 8; k++) {
+            var aa = k * 2.4 + 0.3;
+            var dd = R * (0.3 + 0.6 * (((k * 37) % 10) / 10));
+            var sx = x + Math.cos(aa) * dd;
+            var sy = y + Math.sin(aa) * dd * 0.7;
+            var fall = (1 - p) * 2.5;
+            ctx.moveTo(sx, sy - fall - 0.6);
+            ctx.lineTo(sx, sy - fall);
+          }
+          ctx.lineWidth = 0.07;
+          ctx.strokeStyle = '#5a3a1a';
+          ctx.stroke();
+          break;
+        case 'fireball':
+        case 'rocket':
+          ctx.beginPath();
+          ctx.arc(x, y, R * (0.4 + 0.6 * p), 0, TAU);
+          ctx.fillStyle = 'rgba(255,130,30,0.7)';
+          ctx.fill();
+          ctx.lineWidth = 0.12;
+          ctx.strokeStyle = '#ff6a1a';
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x, y, R * 0.5 * (1 - p) + 0.1, 0, TAU);
+          ctx.fillStyle = '#ffe066';
+          ctx.fill();
+          break;
+        case 'freeze':
+          ctx.beginPath();
+          ctx.arc(x, y, R, 0, TAU);
+          ctx.fillStyle = 'rgba(170,230,255,0.45)';
+          ctx.fill();
+          ctx.lineWidth = 0.1;
+          ctx.strokeStyle = '#e8fbff';
+          ctx.stroke();
+          ctx.beginPath();
+          for (k = 0; k < 6; k++) {
+            var fa = k * (TAU / 6);
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + Math.cos(fa) * R * 0.8, y + Math.sin(fa) * R * 0.8);
+          }
+          ctx.lineWidth = 0.05;
+          ctx.stroke();
+          break;
+        case 'poison':
+          ctx.beginPath();
+          ctx.arc(x, y, R, 0, TAU);
+          ctx.fillStyle = 'rgba(120,220,70,0.3)';
+          ctx.fill();
+          break;
+        case 'deploy':
+          ctx.beginPath();
+          ctx.arc(x, y, R * (0.5 + 0.8 * p), 0, TAU);
+          ctx.lineWidth = 0.1;
+          ctx.strokeStyle = '#d9c9a0';
+          ctx.stroke();
+          break;
+        case 'towerDown':
+          ctx.beginPath();
+          ctx.arc(x, y, R * (0.35 + 0.65 * p), 0, TAU);
+          ctx.fillStyle = 'rgba(255,157,60,0.7)';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, y - 0.3, R * (0.5 + 0.4 * p), 0, TAU);
+          ctx.globalAlpha = a * 0.5;
+          ctx.fillStyle = '#5a5a5a';
+          ctx.fill();
+          ctx.globalAlpha = a;
+          ctx.beginPath();
+          ctx.arc(x, y, R * 0.3 * (1 - p), 0, TAU);
+          ctx.fillStyle = '#fff1a6';
+          ctx.fill();
+          ctx.beginPath();
+          for (k = 0; k < 6; k++) {
+            var da = k * (TAU / 6) + 0.2;
+            var dr = R * p * 0.9;
+            ctx.moveTo(x + Math.cos(da) * dr + 0.12, y + Math.sin(da) * dr);
+            ctx.arc(x + Math.cos(da) * dr, y + Math.sin(da) * dr, 0.12, 0, TAU);
+          }
+          ctx.fillStyle = '#6e5a4a';
+          ctx.fill();
+          break;
+        case 'spawn':
+          ctx.fillStyle = '#ffffff';
+          for (k = 0; k < 3; k++) {
+            var sa = k * (TAU / 3);
+            var sd = 0.1 + 0.35 * p;
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(sa) * sd, y + Math.sin(sa) * sd, 0.25 * (1 - p) + 0.12, 0, TAU);
+            ctx.globalAlpha = a * 0.7;
+            ctx.fill();
+          }
+          break;
+        case 'elixir':
+          arenaText(ctx, String(f.text || '-'), x, y - 1.6 * p, 0.9, '#d98bff', {
+            bold: true,
+            outline: '#2b0d40'
+          });
+          break;
+        default:
+          break;
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  Renderer.prototype._drawDragGhost = function (game, team, uiState, cardId, card) {
+    var d = uiState.drag;
+    if (!d || !this.isInArena(d.x, d.y)) return;
+    var t = this.screenToTile(d.x, d.y);
+    var sx = Math.round(t.x * 2) / 2;
+    var sy = Math.round(t.y * 2) / 2;
+    var ok = true;
+    if (typeof game.canDeploy === 'function') {
+      ok = !!game.canDeploy(team, uiState.selected, sx, sy);
+    }
+    var tc = teamColor(team);
+    var ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    if (card.type === 'spell') {
+      if (card.log) {
+        var w = card.log.width || 3.9;
+        var L = card.log.length || 11;
+        // Team 0 rolls toward smaller y, team 1 toward larger y.
+        var ry = team === 1 ? sy : sy - L;
+        ctx.fillStyle = ok ? 'rgba(255,255,255,0.25)' : COL.invalid;
+        ctx.fillRect(sx - w / 2, ry, w, L);
+        ctx.lineWidth = 0.08;
+        ctx.strokeStyle = ok ? '#ffffff' : COL.invalidSolid;
+        ctx.strokeRect(sx - w / 2, ry, w, L);
+      } else {
+        var rad = card.radius || 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, rad, 0, TAU);
+        ctx.fillStyle = ok ? 'rgba(255,255,255,0.22)' : COL.invalid;
+        ctx.fill();
+        ctx.lineWidth = 0.08;
+        ctx.setLineDash([0.15, 0.15]);
+        ctx.strokeStyle = ok ? '#ffffff' : COL.invalidSolid;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    } else {
+      var def = unitDef(card.unit) || {};
+      var r = def.r || 0.5;
+      var building = card.type === 'building';
+      var offs = formation(card.count || 1);
+      var col = ok ? tc.main : COL.invalidSolid;
+      for (var i = 0; i < offs.length; i++) {
+        var px = sx + offs[i][0];
+        var py = sy + offs[i][1];
+        if (building) {
+          rrPath(ctx, px - r, py - r, r * 2, r * 2, r * 0.3);
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, r, 0, TAU);
+        }
+        ctx.fillStyle = col;
+        ctx.fill();
+        this._emoji(card.unit ? unitEmoji(card.unit) : '?', px, py, Math.max(0.36, (building ? 1.3 : 1.5) * r));
+      }
+    }
+    ctx.restore();
+  };
+
+  // ---------- UI ----------
+
+  Renderer.prototype._crowns = function (x, cy, count, t, align) {
+    var ctx = this.ctx;
+    var col = teamColor(t);
+    var cw = 15;
+    var ch = 12;
+    var gap = 3;
+    var total = 3 * cw + 2 * gap;
+    var x0 = align === 'right' ? x - total : x;
+    for (var i = 0; i < 3; i++) {
+      var on = i < count;
+      crownPath(ctx, x0 + i * (cw + gap), cy - ch / 2, cw, ch);
+      ctx.fillStyle = on ? col.main : COL.crownOff;
+      ctx.fill();
+      if (on) {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = col.dark;
+        ctx.stroke();
+      }
+    }
+  };
+
+  Renderer.prototype._drawTopBar = function (game, team) {
+    var ctx = this.ctx;
+    var I = this.insets;
+    var cssW = this.cssW;
+    ctx.fillStyle = COL.topBar;
+    ctx.fillRect(0, 0, cssW, I.top + TOP_BAR_H);
+
+    var yLabel = I.top + 11;
+    var yRow = I.top + 31;
+    var cx = cssW / 2;
+    var enemy = 1 - team;
+    var pl = game && game.players ? game.players : null;
+    var eC = pl && pl[enemy] ? pl[enemy].crowns | 0 : 0;
+    var pC = pl && pl[team] ? pl[team].crowns | 0 : 0;
+
+    // Left edge reserves room for the HTML pause button that sits over the top bar.
+    var leftX = I.left + MARGIN + 40;
+    uiText(ctx, 'Opponent', leftX, yLabel, 10, COL.textDim, '600', 'left', 'middle');
+    this._crowns(leftX, yRow, eC, enemy, 'left');
+    this._crowns(cssW - I.right - MARGIN, yRow, pC, team, 'right');
+
+    if (!game) return;
+    if (game.phase === 'overtime') {
+      uiText(ctx, 'Overtime', cx, yLabel, 9, COL.orange, '700', 'center', 'middle');
+    }
+    var label = fmtTime(game.timeLeft);
+    ctx.font = '700 17px ' + FONT;
+    var tw = ctx.measureText(label).width;
+    uiText(ctx, label, cx, yRow, 17, COL.text, '700', 'center', 'middle');
+
+    var mult = game.elixirMult | 0;
+    if (mult > 1) {
+      var bx = cx + tw / 2 + 8;
+      var by = yRow - 8;
+      rrPath(ctx, bx, by, 30, 16, 5);
+      ctx.fillStyle = COL.elixir;
+      ctx.fill();
+      uiText(ctx, 'x' + mult, bx + 15, by + 8.5, 10, '#ffffff', '700', 'center', 'middle');
+    }
+  };
+
+  // Elixir drop, count, and 10 segments with a partial fill.
+  Renderer.prototype._drawElixir = function (elixir) {
+    var ctx = this.ctx;
+    var b = this.barRect;
+    var e = clamp(elixir || 0, 0, 10);
+    var dr = 11;
+    var dcx = b.x + dr;
+    var dcy = b.y + b.h / 2;
+    dropPath(ctx, dcx, dcy, dr * 0.8);
+    ctx.fillStyle = COL.drop;
+    ctx.fill();
+    uiText(ctx, String(Math.floor(e)), dcx, dcy + 1, 12, '#ffffff', '700', 'center', 'middle');
+
+    var sx0 = b.x + dr * 2 + 8;
+    var sx1 = b.x + b.w;
+    var gap = 3;
+    var segW = (sx1 - sx0 - gap * 9) / 10;
+    for (var i = 0; i < 10; i++) {
+      var x = sx0 + i * (segW + gap);
+      rrPath(ctx, x, b.y, segW, b.h, 4);
+      ctx.fillStyle = COL.segBack;
+      ctx.fill();
+      var f = clamp(e - i, 0, 1);
+      if (f > 0) {
+        rrPath(ctx, x, b.y, Math.max(2, segW * f), b.h, 4);
+        ctx.fillStyle = COL.elixir;
+        ctx.fill();
+        ctx.fillStyle = COL.elixirHi;
+        ctx.fillRect(x + 2, b.y + 3, Math.max(0, segW * f - 4), 2);
+      }
+    }
+  };
+
+  // One card: rarity frame, art with emoji, name band, cost circle, and affordability fill.
+  Renderer.prototype._card = function (cardId, x, y, w, h, o) {
+    var ctx = this.ctx;
+    o = o || {};
+    var card = cardDef(cardId);
+    if (!card) {
+      rrPath(ctx, x, y, w, h, 7);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fill();
+      return;
+    }
+    var frame = RARITY[card.rarity] || RARITY.common;
+    rrPath(ctx, x, y, w, h, 7);
+    ctx.fillStyle = frame;
+    ctx.fill();
+
+    var ix = x + 2.5;
+    var iy = y + 2.5;
+    var iw = w - 5;
+    var ih = h - 5;
+    rrPath(ctx, ix, iy, iw, ih, 5);
+    ctx.fillStyle = COL.cardArt;
+    ctx.fill();
+
+    var bandH = o.compact ? 13 : Math.max(14, h * 0.24);
+    var artH = ih - bandH;
+    rrPath(ctx, ix, iy + artH, iw, bandH, 4);
+    ctx.fillStyle = COL.cardBand;
+    ctx.fill();
+
+    this._emoji(card.emoji || '?', x + w / 2, iy + artH / 2 + 1, Math.min(artH * 0.72, w * 0.52));
+
+    var label = o.label || card.name || '';
+    var fs = o.compact ? 9 : 10.5;
+    ctx.font = '700 ' + fs + 'px ' + FONT;
+    while (fs > 6 && ctx.measureText(label).width > iw - 6) {
+      fs -= 0.5;
+      ctx.font = '700 ' + fs + 'px ' + FONT;
+    }
+    uiText(ctx, label, x + w / 2, iy + artH + bandH / 2 + 0.5, fs, COL.text, '700', 'center', 'middle');
+
+    if (card.cost != null) {
+      var cr = Math.max(8, Math.min(11, h * 0.15));
+      var ccx = ix + cr + 3;
+      var ccy = iy + artH - cr - 3;
+      ctx.beginPath();
+      ctx.arc(ccx, ccy, cr, 0, TAU);
+      ctx.fillStyle = COL.drop;
+      ctx.fill();
+      uiText(ctx, String(card.cost), ccx, ccy + 0.5, cr * 1.15, '#ffffff', '700', 'center', 'middle');
+    }
+
+    if (o.elixir != null && card.cost > o.elixir) {
+      var f = clamp(o.elixir / card.cost, 0, 1);
+      ctx.save();
+      rrPath(ctx, ix, iy, iw, ih, 5);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(30,26,44,0.55)';
+      ctx.fillRect(ix, iy, iw, ih);
+      ctx.fillStyle = 'rgba(201,107,245,0.45)';
+      ctx.fillRect(ix, iy + ih - f * ih, iw, f * ih);
+      ctx.restore();
+    }
+
+    if (o.selected) {
+      rrPath(ctx, x, y, w, h, 7);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = COL.gold;
+      ctx.stroke();
+    }
+  };
+
+  Renderer.prototype._drawPanel = function (game, team, uiState) {
+    var ctx = this.ctx;
+    var top = this.panelTop;
+    ctx.fillStyle = COL.panel;
+    ctx.fillRect(0, top, this.cssW, this.cssH - top);
+    ctx.fillStyle = COL.panelEdge;
+    ctx.fillRect(0, top, this.cssW, 1);
+
+    var p = game && game.players ? game.players[team] : null;
+    var elixir = p ? p.elixir || 0 : 0;
+    this._drawElixir(elixir);
+
+    var nr = this.nextRect;
+    this._card(p ? p.next : null, nr.x, nr.y, nr.w, nr.h, { compact: true, label: 'next' });
+
+    var sel = uiState.selected;
+    for (var i = 0; i < 4; i++) {
+      var r = this.cardRects[i];
+      var isSel = i === sel;
+      var y = isSel ? r.y - CARD_LIFT : r.y;
+      this._card(p && p.hand ? p.hand[i] : null, r.x, y, r.w, r.h, {
+        elixir: elixir,
+        selected: isSel
+      });
+    }
+  };
+
+  // ---------- public API ----------
+
+  CR.Renderer = Renderer;
+})();
+
+</script>
+<script>
+// Sound effects: a tiny WebAudio synth, no audio files.
+// Safe to load in Node: nothing touches window or AudioContext until a sound plays.
+var CR = (globalThis.CR = globalThis.CR || {});
+
+CR.Audio = (function () {
+  'use strict';
+
+  var VOLUME = 0.5;
+  var HIT_LIMIT = 12; // hit sounds per second, the rest are dropped
+  var ctx = null;
+  var master = null;
+  var muted = false;
+  var hitTimes = [];
+
+  // Note: f start freq, f2 optional end freq (sweep), type, dur seconds, v peak gain, d delay seconds.
+  var SOUNDS = {
+    deploy: [{ f: 520, f2: 700, type: 'sine', dur: 0.09, v: 0.10 }],
+    hit: [{ f: 260, f2: 200, type: 'triangle', dur: 0.05, v: 0.06 }],
+    spell: [
+      { f: 330, f2: 880, type: 'sawtooth', dur: 0.22, v: 0.04 },
+      { f: 660, type: 'sine', dur: 0.20, v: 0.04, d: 0.08 }
+    ],
+    towerDown: [
+      { f: 330, type: 'square', dur: 0.25, v: 0.04 },
+      { f: 247, type: 'square', dur: 0.30, v: 0.04, d: 0.18 },
+      { f: 165, type: 'triangle', dur: 0.50, v: 0.08, d: 0.36 }
+    ],
+    king: [
+      { f: 392, type: 'triangle', dur: 0.20, v: 0.07 },
+      { f: 523, type: 'triangle', dur: 0.20, v: 0.07, d: 0.15 },
+      { f: 784, type: 'triangle', dur: 0.45, v: 0.08, d: 0.30 }
+    ],
+    win: [
+      { f: 523, type: 'sine', dur: 0.14, v: 0.08 },
+      { f: 659, type: 'sine', dur: 0.14, v: 0.08, d: 0.12 },
+      { f: 784, type: 'sine', dur: 0.14, v: 0.08, d: 0.24 },
+      { f: 1047, type: 'sine', dur: 0.40, v: 0.08, d: 0.36 }
+    ],
+    lose: [
+      { f: 392, type: 'triangle', dur: 0.30, v: 0.07 },
+      { f: 330, type: 'triangle', dur: 0.30, v: 0.07, d: 0.20 },
+      { f: 294, type: 'triangle', dur: 0.30, v: 0.07, d: 0.40 },
+      { f: 262, type: 'triangle', dur: 0.45, v: 0.07, d: 0.60 }
+    ],
+    error: [
+      { f: 150, type: 'square', dur: 0.12, v: 0.04 },
+      { f: 120, type: 'square', dur: 0.12, v: 0.04, d: 0.06 }
+    ],
+    tick: [{ f: 1000, type: 'sine', dur: 0.05, v: 0.05 }],
+    elixirFull: [
+      { f: 880, type: 'sine', dur: 0.08, v: 0.05 },
+      { f: 1320, type: 'sine', dur: 0.12, v: 0.05, d: 0.09 }
+    ]
+  };
+
+  function ensure() {
+    if (ctx) return ctx;
+    var AC = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!AC) return null;
+    try {
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = muted ? 0 : VOLUME;
+      master.connect(ctx.destination);
+    } catch (e) {
+      ctx = null;
+      master = null;
+    }
+    return ctx;
+  }
+
+  function note(n, t0) {
+    var start = t0 + (n.d || 0);
+    var end = start + n.dur;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = n.type || 'sine';
+    osc.frequency.setValueAtTime(n.f, start);
+    if (n.f2) osc.frequency.exponentialRampToValueAtTime(n.f2, end);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(n.v, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(start);
+    osc.stop(end + 0.02);
+  }
+
+  function allowHit(now) {
+    while (hitTimes.length && now - hitTimes[0] > 1000) hitTimes.shift();
+    if (hitTimes.length >= HIT_LIMIT) return false;
+    hitTimes.push(now);
+    return true;
+  }
+
+  return {
+    // Call from a user gesture so iOS allows audio output.
+    unlock: function () {
+      var c = ensure();
+      if (c && c.state === 'suspended') {
+        try { c.resume(); } catch (e) { /* ignore */ }
+      }
+    },
+
+    play: function (name) {
+      var notes = SOUNDS[name];
+      if (!notes || muted) return;
+      var c = ensure();
+      if (!c) return;
+      if (c.state !== 'running') return;
+      if (name === 'hit' && !allowHit(Date.now())) return;
+      var t0 = c.currentTime + 0.005;
+      for (var i = 0; i < notes.length; i++) note(notes[i], t0);
+    },
+
+    setMuted: function (m) {
+      muted = !!m;
+      if (master) master.gain.value = muted ? 0 : VOLUME;
+    }
+  };
+})();
+
+</script>
+<script>
+// Menus: home, deck builder, result, battle HUD. Builds markup into the screen sections in index.html.
+// Game state, persistence and the battle loop live in js/main.js, which passes callbacks to CR.UI.init.
+var CR = (globalThis.CR = globalThis.CR || {});
+
+CR.UI = (function () {
+  'use strict';
+
+  var app = {};
+  var el = {};
+  var deck = [];
+  var selCol = null;   // collection card picked, waiting for a deck slot
+  var selSlot = null;  // deck slot picked, waiting for a card or a second slot
+  var sheetOpen = false;
+  var lp = null;       // long-press tracker for the info sheet
+
+  var DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
+  var TYPES = { troop: 'Troop', building: 'Building', spell: 'Spell' };
+  var TARGETS = { ground: 'Ground', both: 'Air and ground', buildings: 'Buildings' };
+  var TITLES = { win: 'Victory', loss: 'Defeat', draw: 'Draw' };
+  var REASONS = { king: 'King tower destroyed', tiebreak: 'Tiebreak', forfeit: 'Forfeit' };
+  var COLLECTION = Object.keys(CR.CARDS).sort(function (a, b) {
+    var A = CR.CARDS[a], B = CR.CARDS[b];
+    return A.cost - B.cost || A.name.localeCompare(B.name);
+  });
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; });
+  }
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  function avg(ids) {
+    var t = 0;
+    for (var i = 0; i < ids.length; i++) t += CR.CARDS[ids[i]].cost;
+    return ids.length ? t / ids.length : 0;
+  }
+
+  function speedTier(v) {
+    if (v <= 0) return 'Static';
+    if (v <= 0.75) return 'Slow';
+    if (v <= 1.0) return 'Medium';
+    if (v <= 1.5) return 'Fast';
+    return 'Very fast';
+  }
+
+  // Full card tile: rarity border, elixir drop, emoji, name.
+  function tile(id, cls, attr) {
+    var c = CR.CARDS[id];
+    return '<div class="tile r-' + c.rarity + (cls ? ' ' + cls : '') + '" data-id="' + id + '"' +
+      (attr ? ' ' + attr : '') + '>' +
+      '<div class="tin"><span class="emo">' + c.emoji + '</span><span class="tn">' + esc(c.name) + '</span></div>' +
+      '<span class="drop">' + c.cost + '</span></div>';
+  }
+
+  // Compact tile for the home deck preview.
+  function mini(id) {
+    var c = CR.CARDS[id];
+    return '<div class="tile mini r-' + c.rarity + '"><div class="tin"><span class="emo">' + c.emoji + '</span></div>' +
+      '<span class="drop">' + c.cost + '</span></div>';
+  }
+
+  function crowns(n, color) {
+    var out = '';
+    for (var i = 0; i < 3; i++) {
+      out += '<svg class="crown' + (i < n ? '' : ' off') + '" viewBox="0 0 24 20" style="--c:' + color + '">' +
+        '<path d="M2 18 L3.5 5 L8.5 11 L12 2 L15.5 11 L20.5 5 L22 18 Z"/></svg>';
+    }
+    return out;
+  }
+
+  // Stat rows and ability chips for the info sheet, from the unit and card data.
+  function stats(id) {
+    var c = CR.CARDS[id], rows = [], chips = [], u;
+    function row(k, v) { rows.push([k, String(v)]); }
+
+    if (c.type === 'spell') {
+      if (c.damage) row('Damage', c.damage);
+      if (c.towerDamage) row('Tower damage', c.towerDamage);
+      if (c.radius) row('Radius', c.radius + ' tiles');
+      if (c.dps) row('DPS', c.dps);
+      if (c.towerDps) row('Tower DPS', c.towerDps);
+      if (c.duration) row('Duration', c.duration + ' s');
+      if (c.travelSpeed !== undefined) row('Travel', c.travelSpeed ? c.travelSpeed + ' tiles/s' : 'Instant');
+      if (c.stun) row('Stun', c.stun + ' s');
+      if (c.freeze) row('Freeze', c.freeze + ' s');
+      if (c.knockback) row('Knockback', c.knockback + ' tiles');
+      if (c.slow) row('Slow', Math.round(c.slow * 100) + '%');
+      if (c.log) {
+        row('Length', c.log.length + ' tiles');
+        row('Width', c.log.width + ' tiles');
+        row('Roll speed', c.log.speed + ' tiles/s');
+      }
+      if (c.spawnUnit) chips.push('Spawns ' + c.spawnCount + ' ' + CR.UNITS[c.spawnUnit].name);
+    } else {
+      u = CR.UNITS[c.unit];
+      if (c.type === 'troop') row('Count', c.count);
+      row('HP', u.hp);
+      if (u.damage) row('Damage', u.damage);
+      if (u.hitSpeed) row('Hit speed', u.hitSpeed + ' s');
+      if (u.damage && u.hitSpeed) row('DPS', Math.round(u.damage / u.hitSpeed));
+      if (u.range) row('Range', u.range + ' tiles');
+      if (u.speed) row('Speed', speedTier(u.speed));
+      if (TARGETS[u.targets]) row('Targets', TARGETS[u.targets]);
+      if (u.lifetime) row('Lifetime', u.lifetime + ' s');
+
+      if (u.air) chips.push('Flying');
+      if (u.projectile) chips.push('Ranged');
+      if (u.jumpsRiver) chips.push('Jumps river');
+      if (u.splash) chips.push('Splash ' + u.splash + ' tiles');
+      if (u.splashAroundSelf) chips.push('Splash around self');
+      if (u.charge) chips.push('Charge ' + u.charge.damageMult + 'x after ' + u.charge.dist + ' tiles');
+      if (u.ramp) chips.push('Ramps to ' + u.ramp.stages[2] + ' dmg');
+      if (u.kamikaze) chips.push('Kamikaze, freezes ' + u.kamikaze.freeze + ' s');
+      if (u.spawn) {
+        chips.push('Spawns ' + u.spawn.count + ' ' + CR.UNITS[u.spawn.unit].name +
+          ' every ' + u.spawn.interval + ' s');
+      }
+      if (u.deathDamage) {
+        chips.push('On death: ' + u.deathDamage.damage + ' dmg, radius ' + u.deathDamage.radius);
+      }
+      if (u.deathSpawn) {
+        chips.push('On death: ' + u.deathSpawn.count + ' ' + CR.UNITS[u.deathSpawn.unit].name);
+      }
+    }
+    return { rows: rows, chips: chips };
+  }
+
+  // ---- home ----
+
+  function renderHome(p) {
+    var diffs = DIFFS.map(function (d) {
+      return '<button class="' + (p.difficulty === d[0] ? 'on' : '') + '" data-diff="' + d[0] + '">' + d[1] + '</button>';
+    }).join('');
+    el.home.innerHTML =
+      '<div class="bar">' +
+        '<div class="pill"><span>🏆</span><b>' + p.trophies + '</b></div>' +
+        '<button class="iconbtn" data-act="mute" aria-label="Sound">' + (p.muted ? '🔇' : '🔊') + '</button>' +
+      '</div>' +
+      '<h1 class="logo">ClashAI</h1>' +
+      '<div class="rec"><span>Wins <b>' + p.wins + '</b></span><span>Losses <b>' + p.losses +
+        '</b></span><span>Draws <b>' + p.draws + '</b></span></div>' +
+      '<div class="panel decks"><div class="minis">' + p.deck.map(mini).join('') + '</div>' +
+        '<div class="avgline">Avg elixir <b>' + avg(p.deck).toFixed(1) + '</b></div></div>' +
+      '<div class="spacer"></div>' +
+      '<div class="seg">' + diffs + '</div>' +
+      '<button class="btn gold xl" data-act="battle">Battle</button>' +
+      '<button class="btn dark" data-act="deck">Deck</button>';
+  }
+
+  // ---- deck builder ----
+
+  function renderDeck() {
+    el.slots.innerHTML = deck.map(function (id, i) {
+      return tile(id, 'slot' + (selSlot === i ? ' sel' : ''), 'data-slot="' + i + '"');
+    }).join('');
+    el.grid.innerHTML = COLLECTION.map(function (id) {
+      var cls = (deck.indexOf(id) >= 0 ? 'used ' : '') + (selCol === id ? 'sel' : '');
+      return tile(id, cls.trim(), 'data-col="1"');
+    }).join('');
+    el.avg.textContent = avg(deck).toFixed(1);
+  }
+
+  function changed() {
+    app.onDeckChange(deck.slice());
+    renderDeck();
+  }
+
+  // Put a collection card in a slot. If it is already in the deck, the two slots swap.
+  function place(id, slot) {
+    var i = deck.indexOf(id);
+    if (i === slot) return;
+    if (i >= 0) deck[i] = deck[slot];
+    deck[slot] = id;
+    selCol = null;
+    selSlot = null;
+    changed();
+  }
+
+  function swapSlots(a, b) {
+    var t = deck[a];
+    deck[a] = deck[b];
+    deck[b] = t;
+    selSlot = null;
+    changed();
+  }
+
+  function onSlot(i) {
+    if (selCol) return place(selCol, i);
+    if (selSlot === i) return openSheet(deck[i]);
+    if (selSlot !== null) return swapSlots(selSlot, i);
+    selSlot = i;
+    renderDeck();
+  }
+
+  function onCol(id) {
+    if (selSlot !== null) return place(id, selSlot);
+    if (selCol === id) return openSheet(id);
+    selCol = id;
+    renderDeck();
+  }
+
+  function openSheet(id) {
+    var c = CR.CARDS[id], s = stats(id);
+    sheetOpen = true;
+    el.sheet.innerHTML =
+      '<div class="sh"><span class="emo big">' + c.emoji + '</span><div>' +
+        '<h3>' + esc(c.name) + '</h3>' +
+        '<div class="sub">' + TYPES[c.type] + ' · ' + cap(c.rarity) + ' · ' + c.cost + ' elixir</div>' +
+      '</div></div>' +
+      (s.rows.length ? '<dl class="stats">' + s.rows.map(function (r) {
+        return '<div><dt>' + r[0] + '</dt><dd>' + esc(r[1]) + '</dd></div>';
+      }).join('') + '</dl>' : '') +
+      (s.chips.length ? '<div class="chips">' + s.chips.map(function (t) {
+        return '<span>' + esc(t) + '</span>';
+      }).join('') + '</div>' : '') +
+      '<button class="btn gold" data-act="close-sheet">Close</button>';
+    el.sheetBack.classList.add('open');
+  }
+
+  function closeSheet() {
+    sheetOpen = false;
+    el.sheetBack.classList.remove('open');
+  }
+
+  function openDeck(d) {
+    deck = d.slice();
+    selCol = null;
+    selSlot = null;
+    closeSheet();
+    renderDeck();
+    showScreen('deck');
+  }
+
+  // ---- result ----
+
+  function showResult(r) {
+    var delta = r.delta > 0 ? '+' + r.delta : String(r.delta);
+    var dcls = r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : '';
+    el.result.innerHTML =
+      '<div class="res ' + r.outcome + '">' +
+        '<h1 class="rtitle">' + TITLES[r.outcome] + '</h1>' +
+        '<div class="crowns">' +
+          '<div class="side">' + crowns(r.crowns[0], CR.TEAM_COLORS[0].main) + '</div>' +
+          '<div class="side">' + crowns(r.crowns[1], CR.TEAM_COLORS[1].main) + '</div>' +
+        '</div>' +
+        '<div class="trophy"><span>🏆</span><b>' + r.trophies + '</b><span class="delta ' + dcls + '">' + delta + '</span></div>' +
+        (REASONS[r.reason] ? '<p class="why">' + REASONS[r.reason] + '</p>' : '') +
+        '<button class="btn gold" data-act="ok">OK</button>' +
+      '</div>';
+    showScreen('result');
+  }
+
+  // ---- battle HUD ----
+
+  function setPaused(on) {
+    el.pause.classList.toggle('open', !!on);
+  }
+
+  function setCountdown(text) {
+    var c = $('cd');
+    c.textContent = text ? String(text) : '';
+    c.classList.toggle('on', !!text);
+    if (text) {
+      c.classList.remove('pop');
+      void c.offsetWidth; // restart the pop animation
+      c.classList.add('pop');
+    }
+  }
+
+  function showScreen(name) {
+    var map = { home: el.home, deck: el.deck, result: el.result, battle: el.hud };
+    for (var k in map) map[k].classList.toggle('on', k === name);
+    document.body.classList.toggle('in-battle', name === 'battle');
+  }
+
+  // ---- setup ----
+
+  function bindHome() {
+    el.home.addEventListener('click', function (e) {
+      var d = e.target.closest('[data-diff]');
+      if (d) return app.onDifficulty(d.getAttribute('data-diff'));
+      var b = e.target.closest('[data-act]');
+      if (!b) return;
+      var a = b.getAttribute('data-act');
+      if (a === 'battle') app.onBattle();
+      else if (a === 'deck') app.onDeck();
+      else if (a === 'mute') app.onMute();
+    });
+  }
+
+  function bindDeck() {
+    // Long press (450 ms, no drag) on any card opens its info sheet.
+    el.deck.addEventListener('pointerdown', function (e) {
+      var t = e.target.closest('[data-id]');
+      if (!t || sheetOpen) { lp = null; return; }
+      var id = t.getAttribute('data-id');
+      var rec = { x: e.clientX, y: e.clientY, fired: false, timer: 0 };
+      rec.timer = setTimeout(function () {
+        rec.fired = true;
+        openSheet(id);
+      }, 450);
+      lp = rec;
+    });
+    el.deck.addEventListener('pointermove', function (e) {
+      if (lp && !lp.fired && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 12) {
+        clearTimeout(lp.timer);
+        lp = null;
+      }
+    });
+    el.deck.addEventListener('pointercancel', function () {
+      if (lp) clearTimeout(lp.timer);
+      lp = null;
+    });
+
+    el.deck.addEventListener('click', function (e) {
+      if (lp && lp.fired) { lp = null; return; }
+      if (sheetOpen) {
+        if (e.target === el.sheetBack || e.target.closest('[data-act="close-sheet"]')) closeSheet();
+        return;
+      }
+      var act = e.target.closest('[data-act]');
+      if (act && act.getAttribute('data-act') === 'home') return app.onHome();
+      var s = e.target.closest('[data-slot]');
+      if (s) return onSlot(parseInt(s.getAttribute('data-slot'), 10));
+      var c = e.target.closest('[data-col]');
+      if (c) onCol(c.getAttribute('data-id'));
+    });
+  }
+
+  function bindResult() {
+    el.result.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-act="ok"]');
+      if (b) app.onResultOk();
+    });
+  }
+
+  function bindHud() {
+    el.hud.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-act]');
+      if (!b) return;
+      var a = b.getAttribute('data-act');
+      if (a === 'pause') app.onPause();
+      else if (a === 'resume') app.onResume();
+      else if (a === 'forfeit') app.onForfeit();
+    });
+  }
+
+  function init(handlers) {
+    app = handlers;
+    el.home = $('home');
+    el.deck = $('deck');
+    el.result = $('result');
+    el.hud = $('hud');
+
+    el.deck.innerHTML =
+      '<div class="head"><button class="btn dark sm" data-act="home">Back</button>' +
+        '<h2>Deck</h2><div class="pill">Avg <b class="avgv">0.0</b></div></div>' +
+      '<div class="panel dslots"></div>' +
+      '<div class="scroll"><div class="grid"></div></div>' +
+      '<div class="overlay" id="sheet-back"><div class="panel sheet"></div></div>';
+    el.slots = el.deck.querySelector('.dslots');
+    el.grid = el.deck.querySelector('.grid');
+    el.avg = el.deck.querySelector('.avgv');
+    el.sheetBack = $('sheet-back');
+    el.sheet = el.sheetBack.querySelector('.sheet');
+
+    el.hud.innerHTML =
+      '<button class="hudbtn" data-act="pause" aria-label="Pause">' +
+        '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2"/>' +
+        '<rect x="14" y="5" width="4" height="14" rx="1.2"/></svg></button>' +
+      '<div class="cd" id="cd"></div>' +
+      '<div class="overlay" id="pause"><div class="panel pmenu">' +
+        '<button class="btn gold" data-act="resume">Resume</button>' +
+        '<button class="btn red" data-act="forfeit">Forfeit</button>' +
+      '</div></div>';
+    el.pause = $('pause');
+
+    bindHome();
+    bindDeck();
+    bindResult();
+    bindHud();
+  }
+
+  return {
+    init: init,
+    showScreen: showScreen,
+    renderHome: renderHome,
+    openDeck: openDeck,
+    showResult: showResult,
+    setPaused: setPaused,
+    setCountdown: setCountdown
+  };
+})();
+
+</script>
+<script>
+// App shell: profile persistence, screen flow, battle loop and input.
+// Uses CR.Game, CR.AI, CR.Renderer, CR.Audio and CR.UI.
+(function () {
+  'use strict';
+
+  var KEY = 'clashai.v1';
+  var STEP = 1 / 30;
+  var MAX_STEPS = 5;       // simulation steps per frame, caps catch-up after a stall
+  var COUNTDOWN = 3;       // seconds before the first step
+  var OVER_DELAY = 2.5;    // seconds the final frames stay on screen before the result
+  var TROPHY = { win: 30, loss: -20, draw: 0 };
+  var EVENT_SOUND = { deploy: 'deploy', hit: 'hit', spell: 'spell', towerDown: 'towerDown', kingActivate: 'king' };
+  var DIFFS = ['easy', 'normal', 'hard'];
+  var DRAG_SLOP = 10;      // css px a press must travel before it counts as a drag
+
+  // Haptics come from the iOS app shell. In a browser there is no handler, so the call is a no-op.
+  CR.haptic = function (kind) {
+    try { window.webkit.messageHandlers.haptic.postMessage(kind); } catch (e) {}
+  };
+
+  var canvas = null;
+  var probe = null;
+  var renderer = null;
+  var profile = null;
+
+  var game = null;
+  var ai = null;
+  var battle = null;      // { prevElixir } while a battle is live, null otherwise
+  var phase = 'idle';     // idle | countdown | play | paused | over
+  var cdLeft = 0;
+  var cdShown = 0;
+  var overT = 0;
+  var acc = 0;
+  var last = 0;
+  var raf = 0;
+  var uiState = { selected: -1, drag: null, team: 0 };
+  var ptr = null;         // current pointer gesture on the canvas
+
+  // ---- profile ----
+
+  function hasCard(id) {
+    return Object.prototype.hasOwnProperty.call(CR.CARDS, id);
+  }
+
+  function validDeck(d) {
+    if (!Array.isArray(d) || d.length !== 8) return false;
+    var seen = {};
+    for (var i = 0; i < d.length; i++) {
+      var id = d[i];
+      if (typeof id !== 'string' || !hasCard(id) || seen[id]) return false;
+      seen[id] = true;
+    }
+    return true;
+  }
+
+  function count(v) {
+    var n = Math.floor(Number(v));
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function defaultProfile() {
+    return {
+      deck: CR.DEFAULT_DECK.slice(),
+      trophies: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      difficulty: 'normal',
+      muted: false
+    };
+  }
+
+  function loadProfile() {
+    var p = defaultProfile();
+    try {
+      var s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && typeof s === 'object') {
+        if (validDeck(s.deck)) p.deck = s.deck.slice();
+        p.trophies = count(s.trophies);
+        p.wins = count(s.wins);
+        p.losses = count(s.losses);
+        p.draws = count(s.draws);
+        if (DIFFS.indexOf(s.difficulty) >= 0) p.difficulty = s.difficulty;
+        p.muted = s.muted === true;
+      }
+    } catch (e) {
+      // Storage blocked or value corrupt: keep defaults.
+    }
+    return p;
+  }
+
+  function saveProfile() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(profile));
+    } catch (e) {
+      // Storage unavailable: play on without saving.
+    }
+  }
+
+  // ---- screens ----
+
+  function goHome() {
+    phase = 'idle';
+    CR.UI.renderHome(profile);
+    CR.UI.showScreen('home');
+  }
+
+  // ---- layout ----
+
+  function readInsets() {
+    var cs = getComputedStyle(probe);
+    return {
+      top: parseFloat(cs.paddingTop) || 0,
+      right: parseFloat(cs.paddingRight) || 0,
+      bottom: parseFloat(cs.paddingBottom) || 0,
+      left: parseFloat(cs.paddingLeft) || 0
+    };
+  }
+
+  function layout() {
+    if (!renderer) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    renderer.resize(window.innerWidth, window.innerHeight, dpr, readInsets());
+  }
+
+  // ---- battle ----
+
+  function startBattle() {
+    if (!renderer) renderer = new CR.Renderer(canvas);
+    var aiDeck = CR.AI_DECKS[Math.floor(Math.random() * CR.AI_DECKS.length)].slice();
+    game = new CR.Game({
+      decks: [profile.deck.slice(), aiDeck],
+      seed: Math.floor(Math.random() * 1e9)
+    });
+    ai = new CR.AI(game, 1, { difficulty: profile.difficulty });
+    // Handle for console debugging and automated playtests.
+    CR.current = { game: game, ai: ai, uiState: uiState };
+    battle = { prevElixir: game.players[0].elixir };
+
+    uiState.selected = -1;
+    uiState.drag = null;
+    ptr = null;
+    acc = 0;
+    cdLeft = COUNTDOWN;
+    cdShown = 0;
+    phase = 'countdown';
+
+    layout();
+    CR.UI.showScreen('battle');
+  }
+
+  function playEvents(evs) {
+    if (!evs || !evs.length) return;
+    var seen = {};
+    for (var i = 0; i < evs.length; i++) {
+      if (evs[i].type === 'towerDown') CR.haptic('heavy');
+      var name = EVENT_SOUND[evs[i].type];
+      if (name && !seen[name]) {
+        seen[name] = true;
+        CR.Audio.play(name);
+      }
+    }
+  }
+
+  function stepOnce() {
+    game.update(STEP);
+    ai.update(STEP);
+    playEvents(game.events);
+    var e = game.players[0].elixir;
+    if (battle.prevElixir < 10 && e >= 10) CR.Audio.play('elixirFull');
+    battle.prevElixir = e;
+  }
+
+  // Stores the outcome, updates the profile and shows the result screen.
+  function applyResult(outcome, crownsArr, reason) {
+    phase = 'idle';
+    battle = null;
+    game = null;
+    ai = null;
+    ptr = null;
+    uiState.drag = null;
+    uiState.selected = -1;
+    CR.UI.setPaused(false);
+    CR.UI.setCountdown('');
+
+    var before = profile.trophies;
+    profile.trophies = Math.max(0, before + TROPHY[outcome]);
+    if (outcome === 'win') profile.wins++;
+    else if (outcome === 'loss') profile.losses++;
+    else profile.draws++;
+    saveProfile();
+
+    if (outcome === 'win') {
+      CR.Audio.play('win');
+      CR.haptic('success');
+    } else if (outcome === 'loss') {
+      CR.Audio.play('lose');
+      CR.haptic('error');
+    }
+
+    CR.UI.showResult({
+      outcome: outcome,
+      crowns: crownsArr,
+      trophies: profile.trophies,
+      delta: profile.trophies - before,
+      reason: reason
+    });
+  }
+
+  function finishBattle() {
+    var r = game.result;
+    var outcome = r.winner === 0 ? 'win' : r.winner === 1 ? 'loss' : 'draw';
+    applyResult(outcome, r.crowns.slice(), r.reason);
+  }
+
+  function pause() {
+    if (phase !== 'play') return;
+    phase = 'paused';
+    ptr = null;
+    uiState.drag = null;
+    CR.UI.setPaused(true);
+  }
+
+  function resume() {
+    if (phase !== 'paused') return;
+    phase = 'play';
+    acc = 0;
+    CR.UI.setPaused(false);
+  }
+
+  function forfeit() {
+    if (!battle || (phase !== 'play' && phase !== 'paused' && phase !== 'countdown')) return;
+    var p = game.players;
+    applyResult('loss', [p[0].crowns, p[1].crowns], 'forfeit');
+  }
+
+  // ---- input ----
+
+  function local(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function snap(v) {
+    return Math.round(v * 2) / 2;
+  }
+
+  // Deploy hand card idx at the screen point p. Failure plays the error sound and keeps the selection.
+  function deployAt(idx, p) {
+    var t = renderer.screenToTile(p.x, p.y);
+    var x = Math.min(CR.ARENA.W, Math.max(0, snap(t.x)));
+    var y = Math.min(CR.ARENA.H, Math.max(0, snap(t.y)));
+    if (game.deploy(0, idx, x, y)) {
+      uiState.selected = -1;
+      CR.Audio.play('deploy');
+      CR.haptic('light');
+    } else {
+      CR.Audio.play('error');
+      CR.haptic('error');
+    }
+  }
+
+  function onDown(e) {
+    if (phase !== 'play') return;
+    e.preventDefault();
+    var p = local(e);
+    var idx = renderer.hitTestCard(p.x, p.y);
+    if (idx >= 0) {
+      // Press selects the card. A tap on an already selected card deselects it on release.
+      ptr = { id: e.pointerId, card: idx, wasSel: uiState.selected === idx, x0: p.x, y0: p.y, moved: false, dragging: false };
+      uiState.selected = idx;
+    } else if (renderer.isInArena(p.x, p.y)) {
+      ptr = { id: e.pointerId, card: -1, x0: p.x, y0: p.y, moved: false, dragging: false };
+    } else {
+      ptr = null;
+      return;
+    }
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* not supported: ignore */ }
+  }
+
+  function onMove(e) {
+    if (!ptr || e.pointerId !== ptr.id) return;
+    var p = local(e);
+    if (!ptr.moved && Math.hypot(p.x - ptr.x0, p.y - ptr.y0) > DRAG_SLOP) ptr.moved = true;
+    if (ptr.card >= 0 && ptr.moved) {
+      ptr.dragging = true;
+      uiState.drag = { x: p.x, y: p.y };
+    }
+  }
+
+  function onUp(e) {
+    if (!ptr || e.pointerId !== ptr.id) return;
+    var p = local(e);
+    // A fast flick can arrive with no pointermove in between, so judge the drag by the release point.
+    if (ptr.card >= 0 && !ptr.dragging && Math.hypot(p.x - ptr.x0, p.y - ptr.y0) > DRAG_SLOP) ptr.dragging = true;
+    if (ptr.card >= 0) {
+      if (ptr.dragging) {
+        uiState.drag = null;
+        if (renderer.isInArena(p.x, p.y)) deployAt(ptr.card, p);
+      } else {
+        uiState.selected = ptr.wasSel ? -1 : ptr.card;
+      }
+    } else if (!ptr.moved && uiState.selected >= 0) {
+      deployAt(uiState.selected, p);
+    }
+    ptr = null;
+  }
+
+  function onCancel() {
+    uiState.drag = null;
+    ptr = null;
+  }
+
+  // ---- loop ----
+
+  function frame(now) {
+    raf = requestAnimationFrame(frame);
+    var dt = last ? Math.min(0.25, (now - last) / 1000) : 0;
+    last = now;
+
+    if (phase === 'countdown') {
+      cdLeft -= dt;
+      if (cdLeft <= 0) {
+        phase = 'play';
+        acc = 0;
+        CR.UI.setCountdown('');
+      } else {
+        var n = Math.ceil(cdLeft);
+        if (n !== cdShown) {
+          cdShown = n;
+          CR.UI.setCountdown(n);
+          CR.Audio.play('tick');
+        }
+      }
+    } else if (phase === 'play') {
+      acc += dt;
+      var steps = 0;
+      while (acc >= STEP && steps < MAX_STEPS && !game.result) {
+        stepOnce();
+        acc -= STEP;
+        steps++;
+      }
+      if (steps === MAX_STEPS) acc = 0;
+      if (game.result) {
+        phase = 'over';
+        overT = 0;
+      }
+    } else if (phase === 'over') {
+      overT += dt;
+      if (overT >= OVER_DELAY) finishBattle();
+    }
+
+    if (battle && renderer) renderer.draw(game, uiState);
+  }
+
+  function onVisibility() {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      pause();
+    } else if (!raf) {
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+  }
+
+  function prevent(e) {
+    e.preventDefault();
+  }
+
+  // ---- boot ----
+
+  function boot() {
+    canvas = document.getElementById('game');
+    probe = document.getElementById('probe');
+    profile = loadProfile();
+    CR.Audio.setMuted(profile.muted);
+
+    CR.UI.init({
+      onBattle: startBattle,
+      onDeck: function () { CR.UI.openDeck(profile.deck); },
+      onHome: goHome,
+      onDifficulty: function (d) {
+        profile.difficulty = d;
+        saveProfile();
+        CR.UI.renderHome(profile);
+      },
+      onMute: function () {
+        profile.muted = !profile.muted;
+        CR.Audio.setMuted(profile.muted);
+        saveProfile();
+        CR.UI.renderHome(profile);
+      },
+      onDeckChange: function (d) {
+        profile.deck = d;
+        saveProfile();
+      },
+      onPause: pause,
+      onResume: resume,
+      onForfeit: forfeit,
+      onResultOk: goHome
+    });
+    goHome();
+
+    // Audio needs a user gesture before it can start.
+    var unlock = function () { CR.Audio.unlock(); };
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onCancel);
+    canvas.addEventListener('touchstart', prevent, { passive: false });
+    canvas.addEventListener('touchend', prevent, { passive: false });
+
+    // Stop iOS scrolling, pinch zoom and callouts. Scrollable lists opt out with class "scroll".
+    document.addEventListener('touchmove', function (e) {
+      if (!(e.target.closest && e.target.closest('.scroll'))) e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('gesturestart', prevent, { passive: false });
+    document.addEventListener('contextmenu', prevent);
+
+    window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', function () { setTimeout(layout, 200); });
+    document.addEventListener('visibilitychange', onVisibility);
+
+    raf = requestAnimationFrame(frame);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+
+</script>
+<script>
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Builds dist/: index.html with every script inlined (single file), plus manifest, sw.js and icons.
+// Also writes ios/ClashAI/Web/ (index.html and icons only; the app has no service worker).
 // Usage: node tools/build.js
 'use strict';
 
@@ -8,6 +9,8 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
+// iOS app bundle payload: the single-file page and icons, copied in as a folder reference.
+const IOS_WEB = path.join(ROOT, 'ios', 'ClashAI', 'Web');
 
 // Must match the load order in index.html.
 const SCRIPTS = [
@@ -58,7 +61,15 @@ for (const f of ICONS) {
   fs.copyFileSync(path.join(ROOT, 'icons', f), path.join(DIST, 'icons', f));
 }
 
+fs.rmSync(IOS_WEB, { recursive: true, force: true });
+fs.mkdirSync(path.join(IOS_WEB, 'icons'), { recursive: true });
+fs.writeFileSync(path.join(IOS_WEB, 'index.html'), html);
+for (const f of ICONS) {
+  fs.copyFileSync(path.join(ROOT, 'icons', f), path.join(IOS_WEB, 'icons', f));
+}
+
 console.log(`built ${path.relative(process.cwd(), DIST) || DIST}`);
+console.log(`built ${path.relative(process.cwd(), IOS_WEB) || IOS_WEB}`);
 for (const f of ['index.html', 'sw.js', 'manifest.webmanifest']) {
   console.log(`  ${f} ${fs.statSync(path.join(DIST, f)).size} bytes`);
 }

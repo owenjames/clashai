@@ -13,6 +13,11 @@
   var DIFFS = ['easy', 'normal', 'hard'];
   var DRAG_SLOP = 10;      // css px a press must travel before it counts as a drag
 
+  // Haptics come from the iOS app shell. In a browser there is no handler, so the call is a no-op.
+  CR.haptic = function (kind) {
+    try { window.webkit.messageHandlers.haptic.postMessage(kind); } catch (e) {}
+  };
+
   var canvas = null;
   var probe = null;
   var renderer = null;
@@ -148,6 +153,7 @@
     if (!evs || !evs.length) return;
     var seen = {};
     for (var i = 0; i < evs.length; i++) {
+      if (evs[i].type === 'towerDown') CR.haptic('heavy');
       var name = EVENT_SOUND[evs[i].type];
       if (name && !seen[name]) {
         seen[name] = true;
@@ -184,8 +190,13 @@
     else profile.draws++;
     saveProfile();
 
-    if (outcome === 'win') CR.Audio.play('win');
-    else if (outcome === 'loss') CR.Audio.play('lose');
+    if (outcome === 'win') {
+      CR.Audio.play('win');
+      CR.haptic('success');
+    } else if (outcome === 'loss') {
+      CR.Audio.play('lose');
+      CR.haptic('error');
+    }
 
     CR.UI.showResult({
       outcome: outcome,
@@ -242,8 +253,10 @@
     if (game.deploy(0, idx, x, y)) {
       uiState.selected = -1;
       CR.Audio.play('deploy');
+      CR.haptic('light');
     } else {
       CR.Audio.play('error');
+      CR.haptic('error');
     }
   }
 

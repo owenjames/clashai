@@ -7,7 +7,8 @@ const path = require('path');
 const zlib = require('zlib');
 
 const OUT_DIR = path.join(__dirname, '..', 'icons');
-const SIZES = [180, 192, 512];
+const IOS_ICON = path.join(__dirname, '..', 'ios', 'ClashAI', 'Assets.xcassets', 'AppIcon.appiconset', 'icon-1024.png');
+const SIZES = [180, 192, 512, 1024];
 const SS = 4; // supersampling grid per axis
 
 const BG_A = [0x3b, 0x8c, 0xff];
@@ -149,11 +150,16 @@ function encodePng(size, raw) {
 fs.mkdirSync(OUT_DIR, { recursive: true });
 let failed = false;
 for (const size of SIZES) {
-  const file = path.join(OUT_DIR, `icon-${size}.png`);
-  fs.writeFileSync(file, encodePng(size, render(size)));
-  const head = fs.readFileSync(file).subarray(0, 8);
-  const ok = head.equals(PNG_SIG);
-  if (!ok) failed = true;
-  console.log(`${ok ? 'ok ' : 'BAD'} ${file} (${fs.statSync(file).size} bytes)`);
+  // The 1024 px App Store icon also goes straight into the iOS asset catalog.
+  const files = [path.join(OUT_DIR, `icon-${size}.png`)];
+  if (size === 1024) files.push(IOS_ICON);
+  for (const file of files) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, encodePng(size, render(size)));
+    const head = fs.readFileSync(file).subarray(0, 8);
+    const ok = head.equals(PNG_SIG);
+    if (!ok) failed = true;
+    console.log(`${ok ? 'ok ' : 'BAD'} ${file} (${fs.statSync(file).size} bytes)`);
+  }
 }
 if (failed) process.exitCode = 1;
