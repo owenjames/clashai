@@ -30,21 +30,27 @@ const TYPES = {
 
 // Live reload: HTML responses get a tiny EventSource client, and file changes broadcast a reload.
 const RELOAD_PATH = '/__reload';
-const RELOAD_SNIPPET = `<script>(function(){var es=new EventSource('${RELOAD_PATH}');es.onmessage=function(){location.reload();};})();</script>`;
+// Each event carries the changed path; a page reloads only for files under its own folder
+// (the game page ignores preview/ and vice versa) so one page's edits don't restart another.
+const RELOAD_SNIPPET = `<script>(function(){var dir=location.pathname.replace(/[^/]*$/,'').slice(1);var es=new EventSource('${RELOAD_PATH}');es.onmessage=function(e){var p=e.data;if(dir?p.indexOf(dir)===0:p.indexOf('preview/')!==0)location.reload();};})();</script>`;
 const clients = new Set();
+const pending = new Set();
 let reloadTimer = null;
-function broadcastReload() {
+function broadcastReload(rel) {
+  pending.add(rel);
   clearTimeout(reloadTimer);
-  // Editors often write several files at once, so coalesce bursts into one reload.
+  // Editors often write several files at once, so coalesce bursts into one event per path.
   reloadTimer = setTimeout(() => {
-    for (const res of clients) res.write('data: reload\n\n');
+    for (const p of pending) for (const res of clients) res.write(`data: ${p}\n\n`);
+    pending.clear();
   }, 120);
 }
-for (const dir of ['.', 'js', 'preview', 'tools']) {
+for (const dir of ['.', 'js', 'preview']) {
   const full = path.join(ROOT, dir);
   if (!fs.existsSync(full)) continue;
   fs.watch(full, { recursive: dir === 'preview' }, (evt, name) => {
-    if (name && /\.(html|js|css|json|png|glb|gltf|webmanifest)$/i.test(name)) broadcastReload();
+    if (!name || !/\.(html|js|css|json|png|glb|gltf|webmanifest)$/i.test(name)) return;
+    broadcastReload(path.posix.join(dir === '.' ? '' : dir, name.split(path.sep).join('/')));
   });
 }
 
