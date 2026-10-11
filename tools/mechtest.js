@@ -545,7 +545,7 @@ function hitDrops(g, giant, seconds) {
   return drops;
 }
 
-test('12a prince first hit after a 2.5 tile charge deals double damage (784)', () => {
+test('12a prince first hit after a 3 tile charge deals double damage (784)', () => {
   const { g, prince, giant } = princeSetup(31);
   let chargedAtHit = null;
   let last = giant.hp;
@@ -587,7 +587,7 @@ test('12b an enemy zap during the charge cancels it (next hit is 392)', () => {
   }
   check(firstDmg !== null, 'prince never hit the giant after the zap');
   if (firstDmg !== null) {
-    const want = walked >= 2.5 ? 784 : 392;
+    const want = walked >= 3.0 ? 784 : 392;
     check(near(firstDmg, want, 0.5), `hit ${firstDmg} after walking ${walked.toFixed(2)} tiles since the zap, want ${want}`);
   }
 });
@@ -608,7 +608,7 @@ function infernoSetup(seed) {
   return { g, inferno, giant };
 }
 
-test('13a inferno ramps 35 -> 127 -> 422 on a locked giant', () => {
+test('13a inferno ramps 42 -> 127 -> 422 on a locked giant', () => {
   const { g, giant } = infernoSetup(41);
   const drops = [];
   let last = giant.hp;
@@ -618,7 +618,7 @@ test('13a inferno ramps 35 -> 127 -> 422 on a locked giant', () => {
     last = giant.hp;
   }
   const first = drops[0];
-  check(first && first.dmg === 35, `first inferno hit ${first && first.dmg}, want 35`);
+  check(first && first.dmg === 42, `first inferno hit ${first && first.dmg}, want 42`);
   const mid = drops.find((d) => d.dmg === 127);
   const top = drops.find((d) => d.dmg === 422);
   check(mid, 'inferno never reached 127 damage per hit');
@@ -626,7 +626,7 @@ test('13a inferno ramps 35 -> 127 -> 422 on a locked giant', () => {
   if (first && mid && top) check(first.t < mid.t && mid.t < top.t, 'inferno stages out of order');
 });
 
-test('13b a zap resets the inferno ramp to 35', () => {
+test('13b a zap resets the inferno ramp to 42', () => {
   const { g, inferno, giant } = infernoSetup(42);
   step(g, 4.5);
   check(inferno.rampStage === 2, `inferno stage ${inferno.rampStage} before zap, want 2`);
@@ -639,7 +639,7 @@ test('13b a zap resets the inferno ramp to 35', () => {
     if (giant.hp < last) firstAfter = last - giant.hp;
     last = giant.hp;
   }
-  check(firstAfter !== null && near(firstAfter, 35, 0.5), `first hit after zap ${firstAfter}, want 35`);
+  check(firstAfter !== null && near(firstAfter, 42, 0.5), `first hit after zap ${firstAfter}, want 42`);
 });
 
 test('13c retargeting the inferno resets the ramp to 35', () => {
@@ -1197,6 +1197,371 @@ test('24 air units fly straight over the river, no bridge detour', () => {
   check(d.y < RIVER_TOP, 'baby dragon never got across the river');
   check(inRiver > 0, 'baby dragon never sampled the river');
   check(maxDev < 0.3, `air unit left the straight line by ${maxDev.toFixed(2)} tiles`);
+});
+
+// ---- 25. Mechanics round: new cards ----------------------------------------
+
+// Deploys with elixir topped up so a test can play several cards in a row.
+function dep(g, team, cardId, x, y) {
+  g.players[team].elixir = 10;
+  return play(g, team, cardId, x, y);
+}
+
+test('25 lightning hits the 3 highest-hp enemies in radius, stuns them, leaves the rest', () => {
+  const g = makeGame(['lightning', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 51);
+  check(dep(g, 1, 'giant', 9, 9), 'enemy giant deploys');
+  check(dep(g, 1, 'knight', 9.8, 9), 'enemy knight deploys');
+  check(dep(g, 1, 'musketeer', 8.2, 9), 'enemy musketeer deploys');
+  check(dep(g, 1, 'archers', 9, 10.5), 'enemy archers deploy');
+  check(dep(g, 1, 'skeletons', 9.2, 8), 'enemy skeletons deploy');
+  const giant = unitsOf(g, 'giant', 1)[0];
+  const knight = unitsOf(g, 'knight', 1)[0];
+  const mus = unitsOf(g, 'musketeer', 1)[0];
+  const archers = unitsOf(g, 'archer', 1);
+  const skels = unitsOf(g, 'skeleton', 1);
+  check(dep(g, 0, 'lightning', 9, 9), 'lightning deploys on the cluster');
+  check(giant.hp < 4091, `giant not hit (hp ${giant.hp})`);
+  check(knight.hp < 1766, `knight not hit (hp ${knight.hp})`);
+  check(mus.dead || mus.hp < 720, 'musketeer not hit');
+  check(knight.stunT > 0.4, `knight not stunned (stunT ${knight.stunT})`);
+  check(archers.every((a) => a.hp === 304), 'a lower-hp archer was hit');
+  check(skels.every((s) => s.hp === 81), 'a lower-hp skeleton was hit');
+});
+
+test('26 electro wizard zaps 2 targets per attack and stuns each; deploy zap hits nearby units', () => {
+  const g = makeGame(['electrowizard', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 52);
+  // Deploy zap: an enemy giant sits 1.3 tiles from the drop point before the wizard lands.
+  check(dep(g, 1, 'giant', 9, 12), 'enemy giant deploys');
+  const giant = unitsOf(g, 'giant', 1)[0];
+  place(giant, 9, 18.2);
+  freeze(giant);
+  const hpBefore = giant.hp;
+  check(dep(g, 0, 'electrowizard', 9, 19.5), 'electro wizard deploys');
+  check(near(hpBefore - giant.hp, 192, 0.5), `deploy zap dealt ${hpBefore - giant.hp}, want 192`);
+  place(giant, 2, 10); // out of the wizard's sight so it picks the knights
+  // Two enemy knights in attack range, frozen so they only take hits.
+  check(dep(g, 1, 'knight', 8.6, 14.2), 'enemy knight A deploys');
+  check(dep(g, 1, 'knight', 9.4, 14.2), 'enemy knight B deploys');
+  const [ka, kb] = unitsOf(g, 'knight', 1);
+  freeze(ka);
+  freeze(kb);
+  const ha = ka.hp;
+  const hb = kb.hp;
+  step(g, 4);
+  const dA = ha - ka.hp;
+  const dB = hb - kb.hp;
+  check(dA > 0 && near(dA, dB, 0.01), `both knights should take the same zap hits (A ${dA}, B ${dB})`);
+  check(dA > 0 && near(dA % 110, 0, 0.01), `zap damage not a multiple of 110 (A ${dA})`);
+});
+
+test('27 miner deploys anywhere but the river, burrows in after a travel delay, and does 25 percent damage to towers', () => {
+  const g = makeGame(['miner', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 53);
+  check(g.isInDeployZone(0, 'miner', 9, 8), 'miner zone rejects the enemy half');
+  check(!g.isInDeployZone(0, 'miner', 9, 16), 'miner zone accepts the river');
+  check(!g.isInDeployZone(0, 'knight', 9, 8), 'knight zone accepts the enemy half');
+  check(dep(g, 0, 'miner', 3.5, 9.5), 'miner deploys in the enemy half');
+  const m = unitsOf(g, 'miner', 0)[0];
+  const want = 0.5 + Math.hypot(9 - 3.5, 29 - 9.5) / 12;
+  check(m && near(m.deployT, want, 0.05), `burrow delay ${m && m.deployT}, want ${want.toFixed(2)}`);
+  const tower = towerOf(g, 1, 'princess', 0);
+  let first = null;
+  let last = tower.hp;
+  for (let i = 0; i < 8 / DT && first === null; i++) {
+    g.update(DT);
+    if (tower.hp < last) first = last - tower.hp;
+    last = tower.hp;
+  }
+  check(first !== null && near(first, 193 * 0.25, 1), `first hit on the tower ${first}, want about 48`);
+});
+
+test('28 mega knight deals 444 on landing and jumps onto a target 3.5 to 5 tiles away', () => {
+  // Landing: an enemy knight 1.8 tiles from the drop point takes the 444 landing hit at once.
+  const g1 = makeGame(['megaknight', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 54);
+  check(dep(g1, 1, 'knight', 9, 12), 'enemy knight deploys');
+  const near1 = unitsOf(g1, 'knight', 1)[0];
+  place(near1, 9, 17.2);
+  freeze(near1);
+  const before = near1.hp;
+  check(dep(g1, 0, 'megaknight', 9, 19), 'mega knight deploys');
+  check(near(before - near1.hp, 444, 0.5), `landing hit ${before - near1.hp}, want 444`);
+
+  // Jump: an enemy knight 4.25 tiles (edge) away is jumped onto after the 1 s deploy and takes 444 on landing.
+  const g2 = makeGame(['megaknight', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 55);
+  check(dep(g2, 1, 'knight', 9, 13.5), 'far enemy knight deploys');
+  const far = unitsOf(g2, 'knight', 1)[0];
+  freeze(far);
+  check(dep(g2, 0, 'megaknight', 9, 19), 'mega knight deploys for the jump');
+  const mk = unitsOf(g2, 'megaknight', 0)[0];
+  const hp0 = far.hp;
+  step(g2, 2.2);
+  check(near(hp0 - far.hp, 444, 0.5), `jump landing hit ${hp0 - far.hp}, want 444`);
+  check(Math.hypot(mk.x - far.x, mk.y - far.y) < 1.5, `mega knight did not land next to the target (dist ${Math.hypot(mk.x - far.x, mk.y - far.y).toFixed(2)})`);
+});
+
+test('29 bandit dashes 3.5 to 6 tiles to a target and takes no damage while dashing', () => {
+  const g = makeGame(['bandit', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 56);
+  check(dep(g, 1, 'knight', 9, 13.5), 'enemy knight deploys');
+  const knight = unitsOf(g, 'knight', 1)[0];
+  freeze(knight);
+  check(dep(g, 0, 'bandit', 9, 19), 'bandit deploys');
+  const bandit = unitsOf(g, 'bandit', 0)[0];
+  const kHp = knight.hp;
+  let guard = 0;
+  while (!bandit.dash && guard++ < 6 / DT) g.update(DT);
+  check(!!bandit.dash, 'bandit never started a dash');
+  if (bandit.dash) {
+    const bHp = bandit.hp;
+    check(dep(g, 1, 'zap', bandit.x, bandit.y), 'enemy zap deploys on the dashing bandit');
+    check(bandit.hp === bHp, `dashing bandit took ${bHp - bandit.hp} damage`);
+  }
+  // The first hit on the knight is the landing (200); its melee swing follows 0.4 s later.
+  let firstDrop = null;
+  let last = knight.hp;
+  for (let i = 0; i < 3 / DT && firstDrop === null; i++) {
+    g.update(DT);
+    if (knight.hp < last) firstDrop = last - knight.hp;
+    last = knight.hp;
+  }
+  check(firstDrop !== null && near(firstDrop, 200, 0.5), `landing hit on the knight ${firstDrop}, want 200`);
+  check(kHp - knight.hp > 0, 'knight was never hit');
+});
+
+test('30 tornado pulls enemy troops to its centre over 1.05 s, deals small damage, and wakes an inactive king', () => {
+  const g = makeGame(['tornado', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 57);
+  check(dep(g, 1, 'giant', 9, 9), 'enemy giant deploys');
+  const giant = unitsOf(g, 'giant', 1)[0];
+  freeze(giant);
+  const king = towerOf(g, 1, 'king');
+  check(!king.active, 'enemy king starts inactive');
+  const hp0 = giant.hp;
+  check(dep(g, 0, 'tornado', 9, 12), 'tornado deploys');
+  step(g, 0.5);
+  const d = Math.hypot(giant.x - 9, giant.y - 12);
+  check(near(d, 3 * (1 - 0.5 / 1.05), 0.1), `distance to centre after 0.5 s is ${d.toFixed(2)}`);
+  step(g, 0.6);
+  check(Math.hypot(giant.x - 9, giant.y - 12) < 0.1, 'giant was not pulled to the centre');
+  const dmg = hp0 - giant.hp;
+  check(dmg > 100 && dmg < 112, `tornado damage ${dmg.toFixed(1)}, want about 106`);
+  check(king.active, 'pulled giant did not activate the king tower');
+});
+
+test('31 tesla stays hidden and untargetable until an enemy enters its range, then fires', () => {
+  const g = makeGame(['tesla', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 58);
+  check(dep(g, 0, 'tesla', 9, 20), 'tesla deploys');
+  const tesla = unitsOf(g, 'tesla', 0)[0];
+  step(g, 1.5);
+  check(tesla.hidden, 'tesla is not hidden with no enemy near');
+  const hp0 = tesla.hp;
+  check(dep(g, 1, 'zap', tesla.x, tesla.y), 'enemy zap deploys on the hidden tesla');
+  check(tesla.hp === hp0, `hidden tesla took ${hp0 - tesla.hp} damage`);
+  check(dep(g, 1, 'knight', 9, 14.5), 'enemy knight deploys in range');
+  const knight = unitsOf(g, 'knight', 1)[0];
+  freeze(knight);
+  step(g, 0.2);
+  check(!tesla.hidden, 'tesla did not rise when an enemy entered its range');
+  step(g, 3);
+  check(knight.hp < 1766, 'revealed tesla did not shoot the knight');
+});
+
+test('32 princess shoots from 9 tiles and its arrow splashes a second unit on impact', () => {
+  const g = makeGame(['princess', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 59);
+  check(dep(g, 1, 'giant', 9, 11), 'enemy giant deploys');
+  check(dep(g, 1, 'knight', 9.8, 11), 'enemy knight deploys beside it');
+  const giant = unitsOf(g, 'giant', 1)[0];
+  const knight = unitsOf(g, 'knight', 1)[0];
+  freeze(giant);
+  freeze(knight);
+  check(dep(g, 0, 'princess', 9, 20), 'princess deploys');
+  let shot = null;
+  let gLast = giant.hp;
+  let kLast = knight.hp;
+  for (let i = 0; i < 8 / DT && shot === null; i++) {
+    g.update(DT);
+    if (giant.hp < gLast) shot = { g: gLast - giant.hp, k: kLast - knight.hp };
+    gLast = giant.hp;
+    kLast = knight.hp;
+  }
+  check(shot !== null, 'princess never hit the giant from 9 tiles');
+  if (shot) {
+    check(near(shot.g, 169, 0.5), `giant took ${shot.g}, want 169`);
+    check(near(shot.k, 169, 0.5), `splash on the knight was ${shot.k}, want 169`);
+  }
+});
+
+test('33 ice wizard slows what it hits for 2.5 s, and its deploy burst hits units beside it', () => {
+  const g = makeGame(['icewizard', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 60);
+  check(dep(g, 1, 'giant', 9, 12), 'enemy giant deploys');
+  const giant = unitsOf(g, 'giant', 1)[0];
+  place(giant, 9, 18.2);
+  freeze(giant);
+  const gHp = giant.hp;
+  check(dep(g, 0, 'icewizard', 9, 19.5), 'ice wizard deploys');
+  check(near(gHp - giant.hp, 90, 0.5), `deploy burst ${gHp - giant.hp}, want 90`);
+  place(giant, 2, 10);
+  check(dep(g, 1, 'knight', 9, 14), 'enemy knight deploys in range');
+  const knight = unitsOf(g, 'knight', 1)[0];
+  freeze(knight);
+  let guard = 0;
+  while (knight.slowAmount === 0 && guard++ < 8 / DT) g.update(DT);
+  check(knight.slowAmount > 0, 'knight was never slowed');
+  check(near(knight.slowAmount, 0.35, 0.01), `slow amount ${knight.slowAmount}, want 0.35`);
+  check(near(knight.slowT, 2.5, 0.05), `slow lasts ${knight.slowT.toFixed(2)} s, want 2.5`);
+});
+
+test('34 lava hound flies past troops to hit buildings only, and on death releases 6 lava pups', () => {
+  const g = makeGame(['lavahound', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 61);
+  check(dep(g, 1, 'knight', 9, 14), 'enemy knight deploys in the hound\'s path');
+  const knight = unitsOf(g, 'knight', 1)[0];
+  freeze(knight);
+  check(dep(g, 0, 'lavahound', 9, 20), 'lava hound deploys');
+  const hound = unitsOf(g, 'lavahound', 0)[0];
+  let troopTarget = false;
+  for (let i = 0; i < 4 / DT; i++) {
+    g.update(DT);
+    if (hound.target && hound.target.kind === 'troop') troopTarget = true;
+  }
+  check(!troopTarget, 'lava hound targeted a troop');
+  check(hound.air, 'lava hound is not an air unit');
+  hound.hp = 1; // test setup: leave it one zap from death
+  check(dep(g, 1, 'zap', hound.x, hound.y), 'enemy zap deploys on the hound');
+  check(hound.dead, `hound survived (hp ${hound.hp})`);
+  step(g, 0.1);
+  const pups = unitsOf(g, 'lavapup', 0);
+  check(pups.length === 6, `lava pups after death: ${pups.length}, want 6`);
+  check(pups.every((p) => p.air), 'lava pups are not air units');
+});
+
+test('35 dark prince shield absorbs damage before hp, and the charge builds after 3.5 tiles', () => {
+  const g = makeGame(['darkprince', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 62);
+  check(dep(g, 0, 'darkprince', 9, 22), 'dark prince deploys');
+  const dp = unitsOf(g, 'darkprince', 0)[0];
+  step(g, 1.1);
+  check(dp.shield === 150, `shield starts at ${dp.shield}, want 150`);
+  const hp0 = dp.hp;
+  check(dep(g, 1, 'zap', dp.x, dp.y), 'enemy zap deploys on the dark prince');
+  // Zap does 192: the 150 shield takes the first 150, hp takes the other 42.
+  check(dp.shield === 0, `shield after zap ${dp.shield}, want 0`);
+  check(near(hp0 - dp.hp, 42, 0.5), `hp lost ${hp0 - dp.hp}, want 42`);
+  let guard = 0;
+  let walked = 0;
+  let px = dp.x;
+  let py = dp.y;
+  while (!dp.charging && guard++ < 10 / DT) {
+    g.update(DT);
+    walked += Math.hypot(dp.x - px, dp.y - py);
+    px = dp.x;
+    py = dp.y;
+  }
+  check(dp.charging, 'dark prince never started its charge');
+  check(walked > 3.3 && walked < 3.8, `charge built after ${walked.toFixed(2)} tiles, want about 3.5`);
+});
+
+test('36 graveyard drops about 15 skeletons at random points inside its radius over about 10 s', () => {
+  const g = makeGame(['graveyard', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 63);
+  check(dep(g, 0, 'graveyard', 9, 20), 'graveyard casts');
+  const seen = {};
+  let maxD = 0;
+  for (let i = 0; i < 10 / DT; i++) {
+    g.update(DT);
+    for (const e of g.entities) {
+      if (e.team !== 0 || e.cardId !== 'graveyard' || seen[e.id]) continue;
+      seen[e.id] = true;
+      maxD = Math.max(maxD, Math.hypot(e.x - 9, e.y - 20));
+    }
+  }
+  const n = Object.keys(seen).length;
+  check(n >= 14 && n <= 16, `graveyard spawned ${n} skeletons, want about 15`);
+  check(maxD <= 4.6, `a skeleton spawned ${maxD.toFixed(2)} tiles from the centre, want at most 4`);
+});
+
+test('37 earthquake does 39 per second to ground units, slows them by half, and ignores air units', () => {
+  const g = makeGame(['earthquake', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'babydragon'], 64);
+  check(dep(g, 1, 'knight', 9, 12), 'enemy knight deploys');
+  check(dep(g, 1, 'babydragon', 9, 12), 'enemy baby dragon deploys');
+  const knight = unitsOf(g, 'knight', 1)[0];
+  const dragon = unitsOf(g, 'babydragon', 1)[0];
+  place(knight, 9, 12);
+  place(dragon, 9.5, 12); // away from our towers
+  freeze(knight);
+  freeze(dragon);
+  check(dep(g, 0, 'earthquake', 9, 12), 'earthquake casts');
+  step(g, 1.05);
+  check(near(1766 - knight.hp, 39, 0.5), `ground knight took ${1766 - knight.hp} in one second, want 39`);
+  check(knight.slowAmount === 0.5, `knight slow ${knight.slowAmount}, want 0.5`);
+  check(dragon.hp === 1152, `air baby dragon took ${1152 - dragon.hp} damage`);
+});
+
+test('38a electro spirit chains its kamikaze through up to 9 nearby enemies, stunning each', () => {
+  const g = makeGame(['electrospirit', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 65);
+  const xs = [9, 10.5, 12, 13.5];
+  for (const x of xs) check(dep(g, 1, 'knight', x, 13.5), `enemy knight at x ${x} deploys`);
+  const ks = unitsOf(g, 'knight', 1);
+  for (const k of ks) freeze(k);
+  check(dep(g, 0, 'electrospirit', 9, 19), 'electro spirit deploys');
+  place(unitsOf(g, 'electrospirit', 0)[0], 9, 15.2); // across the river, so it does not walk round by the bridge
+  step(g, 3);
+  const hit = ks.filter((k) => k.hp === 1766 - 99);
+  check(hit.length === 4, `electro spirit chain hit ${hit.length} of 4 knights, want all 4`);
+  check(ks.every((k) => k.hp === 1766 - 99 || k.hp === 1766), 'a knight took a non-chain amount of damage');
+});
+
+test('38b fire spirit explodes with splash that hits the whole cluster', () => {
+  const g = makeGame(['firespirit', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 66);
+  check(dep(g, 1, 'knight', 9, 13.5), 'enemy knight A deploys');
+  check(dep(g, 1, 'knight', 10, 13.5), 'enemy knight B deploys');
+  check(dep(g, 1, 'knight', 9.5, 12.7), 'enemy knight C deploys');
+  const ks = unitsOf(g, 'knight', 1);
+  for (const k of ks) freeze(k);
+  check(dep(g, 0, 'firespirit', 9, 19), 'fire spirit deploys');
+  place(unitsOf(g, 'firespirit', 0)[0], 9, 15.2);
+  step(g, 3);
+  check(ks.every((k) => k.hp === 1766 - 207), `knight hp ${ks.map((k) => k.hp).join(', ')}, want all ${1766 - 207}`);
+});
+
+test('39 executioner axe hits a unit on the way out and again on the way back', () => {
+  const g = makeGame(['executioner', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 67);
+  check(dep(g, 1, 'knight', 9, 14), 'enemy knight deploys on the axe line');
+  const knight = unitsOf(g, 'knight', 1)[0];
+  freeze(knight);
+  check(dep(g, 0, 'executioner', 9, 19), 'executioner deploys');
+  const hp0 = knight.hp;
+  step(g, 2.5);
+  const dmg = hp0 - knight.hp;
+  // Two passes per throw at 250 each. The first throw lands by 2.5 s, so at least two passes.
+  check(dmg >= 500 && dmg % 250 === 0, `axe damage ${dmg}, want a multiple of 250 with at least 2 passes`);
+});
+
+test('40 lumberjack drops a rage zone on death; friendly units inside get the rage buff', () => {
+  const g = makeGame(['lumberjack', 'archers', 'zap', 'musketeer', 'giant', 'fireball', 'knight', 'babydragon'],
+    ['giant', 'archers', 'zap', 'musketeer', 'minipekka', 'fireball', 'knight', 'skeletons'], 68);
+  check(dep(g, 0, 'lumberjack', 9, 20), 'lumberjack deploys');
+  check(dep(g, 0, 'knight', 10.2, 20), 'friendly knight deploys beside it');
+  const lj = unitsOf(g, 'lumberjack', 0)[0];
+  const friend = unitsOf(g, 'knight', 0)[0];
+  step(g, 0.1);
+  lj.hp = 1; // test setup: one zap from death
+  check(dep(g, 1, 'zap', lj.x, lj.y), 'enemy zap deploys on the lumberjack');
+  check(lj.dead, 'lumberjack survived the zap');
+  check(g.spells.some((s) => s.kind === 'rage'), 'no rage zone appeared on death');
+  step(g, 0.1);
+  check(friend.rageT > 0, 'friendly knight did not get the rage buff');
 });
 
 // ---- runner ----------------------------------------------------------------

@@ -26,6 +26,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
   var RETARGET_EVERY = 0.2;
   var LOCK_BREAK = 0.5; // a locked unit re-targets once the target is this far out of range
   var POISON_SLOW_TIME = 0.25;
+  var RAGE_MULT = 1.35; // Rage: +35 percent move and attack speed
+  var RAGE_LINGER = 2; // seconds a unit keeps the rage buff after leaving a Rage zone
   var EPS = 1e-9;
   var EFFECT_FOR_CARD = {
     arrows: 'arrows',
@@ -36,6 +38,10 @@ var CR = (globalThis.CR = globalThis.CR || {});
     poison: 'poison',
     log: 'splash',
     goblinbarrel: 'spawn',
+    graveyard: 'spawn',
+    earthquake: 'splash',
+    lightning: 'lightning',
+    tornado: 'tornado',
   };
 
   function mulberry32(seed) {
@@ -173,6 +179,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
       rampT: 0,
       bridgeX: null,
       spawnTimer: def.spawn ? def.spawn.first : 0,
+      shield: def.shield || 0, // Dark Prince: shield hp absorbs damage first
+      hidden: false, // Tesla: untargetable until an enemy enters range
+      rageT: 0, // seconds left of the Rage buff
+      dash: null, // { tx, ty, t } while dashing (Mega Knight, Bandit)
+      dashCD: 0,
+      invulnT: 0, // > 0 means no damage taken (Bandit dash)
     };
   }
 
@@ -201,11 +213,19 @@ var CR = (globalThis.CR = globalThis.CR || {});
       x: x,
       y: y,
       def: def,
-      deployT: 1.0,
+      deployT: def.deployTime === undefined ? 1.0 : def.deployTime,
     });
+    // Miner: burrows in after travelling from the king tower.
+    if (def.burrow) e.deployT = def.burrow.time + dist(kingPos(team), { x: x, y: y }) / def.burrow.speed;
+    if (def.hidden) e.hidden = true;
     arenaClamp(e);
     riverClamp(e);
     game.entities.push(e);
+    // Landing damage (Electro Wizard zap, Mega Knight, Ice Wizard).
+    if (def.spawnHit) {
+      var sh = def.spawnHit;
+      splashHit(game, team, sh.targets || 'both', e.x, e.y, sh.radius, sh.damage, 0, sh);
+    }
     return e;
   }
 
@@ -223,6 +243,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
   // Whether an attacker with `targets` may hit entity `en`.
   function canHitBy(targets, en) {
     if (targets === 'none') return false;
+    if (en.hidden) return false; // Tesla underground is untargetable
     if (en.air && targets !== 'both') return false;
     if (targets === 'buildings') return en.kind !== 'troop';
     return true;
@@ -356,6 +377,20 @@ var CR = (globalThis.CR = globalThis.CR || {});
     game.events.push({ type: 'death', team: e.team, x: e.x, y: e.y, cardId: e.cardId });
     game.effects.push({ type: 'death', x: e.x, y: e.y, radius: e.r, t: 0, dur: 0.4, team: e.team });
     var def = e.def;
+    if (def.deathRage) {
+      // Lumberjack drops a Rage zone where it dies.
+      game.spells.push({
+        kind: 'rage',
+        cardId: null,
+        team: e.team,
+        x: e.x,
+        y: e.y,
+        radius: def.deathRage.radius,
+        remaining: def.deathRage.duration,
+        done: false,
+      });
+      game.effects.push({ type: 'rage', x: e.x, y: e.y, radius: def.deathRage.radius, t: 0, dur: def.deathRage.duration, team: e.team });
+    }
     if (def.deathDamage) {
       splashHit(game, e.team, 'ground', e.x, e.y, def.deathDamage.radius, def.deathDamage.damage, 0);
     }
@@ -366,6 +401,13 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
   function damageEntity(game, en, amount) {
     if (en.dead || !(amount > 0)) return;
+    if (en.invulnT > 0) return; // Bandit dash
+    if (en.shield > 0) {
+      var absorbed = Math.min(en.shield, amount);
+      en.shield -= absorbed;
+      amount -= absorbed;
+      if (!(amount > 0)) return;
+    }
     en.hp -= amount;
     if (en.kind === 'tower' && en.towerType === 'king') activateKing(game, en);
     if (en.hp <= 0) {
@@ -375,8 +417,15 @@ var CR = (globalThis.CR = globalThis.CR || {});
     }
   }
 
+  function applySlow(e, amount, time) {
+    if (e.kind === 'tower' || !(time > 0)) return;
+    e.slowT = Math.max(e.slowT, time);
+    e.slowAmount = Math.max(e.slowAmount, amount);
+  }
+
   // Area damage around (x, y). Targets must pass the attacker's targeting rules.
-  function splashHit(game, team, targets, x, y, radius, dmg, freezeT) {
+  // fx (optional): { stun, slow: { amount, time } } applied to every unit hit.
+  function splashHit(game, team, targets, x, y, radius, dmg, freezeT, fx) {
     var pt = { x: x, y: y, r: 0 };
     var list = game.entities.slice();
     for (var i = 0; i < list.length; i++) {
@@ -384,6 +433,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
       if (en.dead || en.team === team || !canHitBy(targets, en)) continue;
       if (dist(en, pt) > (radius || 0) + en.r) continue;
       if (freezeT && en.kind === 'troop') applyDisable(en, 0, freezeT);
+      if (fx && fx.stun) applyDisable(en, fx.stun, 0);
+      if (fx && fx.slow) applySlow(en, fx.slow.amount, fx.slow.time);
       damageEntity(game, en, dmg);
     }
     game.effects.push({ type: 'splash', x: x, y: y, radius: radius || 0, t: 0, dur: 0.35, team: team });
@@ -393,7 +444,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
   function currentSpeed(e) {
     var base = e.charging && e.def.charge ? e.def.charge.speed : e.def.speed;
-    return base * (1 - e.slowAmount);
+    return base * (1 - e.slowAmount) * (e.rageT > 0 ? RAGE_MULT : 1);
   }
 
   function stepToward(e, tx, ty, dt, speed) {
@@ -454,6 +505,70 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
   // ---- attacks ----------------------------------------------------------
 
+  // Closest valid enemy of e to point `from` (edge distance within limit), skipping ids in skip.
+  function nearestEnemy(game, e, from, limit, skip) {
+    var best = null;
+    var bestD = Infinity;
+    for (var i = 0; i < game.entities.length; i++) {
+      var en = game.entities[i];
+      if (!canHit(e, en) || (skip && skip[en.id])) continue;
+      var d = dist(en, from) - en.r - (from.r || 0);
+      if (d <= limit && d < bestD) {
+        best = en;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  // Electro Spirit: the kamikaze jump chains from victim to victim, up to ch.count targets.
+  function chainHit(game, e, first, dmg, ch) {
+    var skip = {};
+    var cur = first;
+    var from = { x: e.x, y: e.y, r: 0 };
+    for (var n = 0; cur && n < ch.count; n++) {
+      skip[cur.id] = true;
+      damageEntity(game, cur, dmg);
+      if (ch.stun) applyDisable(cur, ch.stun, 0);
+      game.effects.push({ type: 'chain', x: cur.x, y: cur.y, x0: from.x, y0: from.y, radius: 0, t: 0, dur: 0.3, team: e.team });
+      from = { x: cur.x, y: cur.y, r: 0 };
+      cur = nearestEnemy(game, e, from, ch.range, skip);
+    }
+  }
+
+  // Mega Knight / Bandit: start a jump toward the current target.
+  function startDash(game, e) {
+    var t = e.target;
+    e.dash = { tx: t.x, ty: t.y, t: e.def.dash.time || 0.5 };
+    e.locked = false;
+    e.charging = false;
+    e.chargeDist = 0;
+    game.effects.push({ type: 'dash', x: e.x, y: e.y, radius: e.r, t: 0, dur: 0.4, team: e.team });
+  }
+
+  // Moves a dashing unit to its landing point, then deals landing damage.
+  function updateDash(game, e, dt) {
+    var d = e.dash;
+    var def = e.def.dash;
+    var rem = d.t;
+    d.t = rem - dt;
+    if (def.invuln) e.invulnT = Math.max(e.invulnT, dt * 2);
+    if (d.t > 0) {
+      var f = Math.min(1, dt / rem);
+      e.x += (d.tx - e.x) * f;
+      e.y += (d.ty - e.y) * f;
+      e.facing = Math.atan2(d.ty - e.y, d.tx - e.x);
+      return;
+    }
+    e.x = d.tx;
+    e.y = d.ty;
+    e.dash = null;
+    e.invulnT = 0;
+    e.dashCD = def.cooldown;
+    splashHit(game, e.team, def.targets || 'ground', d.tx, d.ty, def.radius, def.damage, 0);
+    game.effects.push({ type: 'dash', x: d.tx, y: d.ty, radius: def.radius, t: 0, dur: 0.4, team: e.team });
+  }
+
   // Fires one attack from e at its current target. Melee lands now; ranged spawns a projectile.
   function fire(game, e) {
     var def = e.def;
@@ -470,10 +585,42 @@ var CR = (globalThis.CR = globalThis.CR || {});
     e.facing = Math.atan2(tgt.y - e.y, tgt.x - e.x);
 
     if (def.kamikaze) {
-      // Ice Spirit: the jump is an instant impact, then the unit is gone.
-      splashHit(game, e.team, def.targets, tgt.x, tgt.y, def.splash || 0, dmg, def.kamikaze.freeze);
+      // Kamikaze: the jump is an instant impact, then the unit is gone.
+      if (def.kamikaze.chain) {
+        chainHit(game, e, tgt, dmg, def.kamikaze.chain);
+      } else {
+        splashHit(game, e.team, def.targets, tgt.x, tgt.y, def.splash || 0, dmg, def.kamikaze.freeze);
+      }
       game.events.push({ type: 'hit', team: e.team, x: tgt.x, y: tgt.y, cardId: e.cardId });
       killEntity(game, e);
+      return;
+    }
+
+    if (def.boomerang) {
+      // Executioner: the axe flies out along the line to the target, then comes back.
+      var bdx = tgt.x - e.x;
+      var bdy = tgt.y - e.y;
+      var bd = Math.hypot(bdx, bdy) || 1;
+      var bl = def.boomerang.length;
+      game.spells.push({
+        kind: 'boomerang',
+        cardId: e.cardId,
+        team: e.team,
+        x: e.x,
+        y: e.y,
+        dx: bdx / bd,
+        dy: bdy / bd,
+        length: bl,
+        width: def.boomerang.width,
+        damage: dmg,
+        targets: def.targets,
+        speed: bl / (def.boomerang.time || 0.5),
+        p: 0,
+        phase: 1,
+        hit: {},
+        done: false,
+      });
+      game.events.push({ type: 'hit', team: e.team, x: tgt.x, y: tgt.y, cardId: e.cardId });
       return;
     }
 
@@ -490,6 +637,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
         damage: dmg,
         splash: def.splash || 0,
         targets: def.targets,
+        slow: def.slowOnHit || null,
         fromTower: e.kind === 'tower',
         done: false,
       });
@@ -499,10 +647,24 @@ var CR = (globalThis.CR = globalThis.CR || {});
       } else if (def.splash) {
         splashHit(game, e.team, def.targets, tgt.x, tgt.y, def.splash, dmg, 0);
       } else {
-        damageEntity(game, tgt, dmg);
+        if (def.hitStun) applyDisable(tgt, def.hitStun, 0);
+        damageEntity(game, tgt, tgt.kind === 'tower' && def.towerDamageMult ? dmg * def.towerDamageMult : dmg);
+        if (def.multiTargets > 1) {
+          // Electro Wizard: the zap also reaches the nearest other enemies in range.
+          var skip = {};
+          skip[tgt.id] = true;
+          for (var k = 1; k < def.multiTargets; k++) {
+            var extra = nearestEnemy(game, e, e, def.range, skip);
+            if (!extra) break;
+            skip[extra.id] = true;
+            if (def.hitStun) applyDisable(extra, def.hitStun, 0);
+            damageEntity(game, extra, dmg);
+            game.effects.push({ type: def.effect || 'hit', x: extra.x, y: extra.y, radius: extra.r, t: 0, dur: 0.25, team: e.team });
+          }
+        }
       }
       game.events.push({ type: 'hit', team: e.team, x: tgt.x, y: tgt.y, cardId: e.cardId });
-      game.effects.push({ type: 'hit', x: tgt.x, y: tgt.y, radius: tgt.r, t: 0, dur: 0.25, team: e.team });
+      game.effects.push({ type: def.effect || 'hit', x: tgt.x, y: tgt.y, radius: tgt.r, t: 0, dur: 0.25, team: e.team });
     }
   }
 
@@ -542,11 +704,20 @@ var CR = (globalThis.CR = globalThis.CR || {});
       e.deployT = Math.max(0, e.deployT - dt);
       return;
     }
+    if (e.hidden) {
+      // Tesla: stays underground until an enemy enters its range, then pops up.
+      if (findTarget(game, e, def.range)) {
+        e.hidden = false;
+        e.deployT = def.upTime || 0.8;
+      }
+      return;
+    }
 
     e.stunT = Math.max(0, e.stunT - dt);
     e.freezeT = Math.max(0, e.freezeT - dt);
     e.slowT = Math.max(0, e.slowT - dt);
     if (e.slowT === 0) e.slowAmount = 0;
+    e.rageT = Math.max(0, e.rageT - dt);
     var disabled = e.stunT > 0 || e.freezeT > 0;
 
     if (def.spawn) {
@@ -579,6 +750,22 @@ var CR = (globalThis.CR = globalThis.CR || {});
       }
     }
 
+    if (def.dash) {
+      e.dashCD = Math.max(0, e.dashCD - dt);
+      if (e.dash) {
+        updateDash(game, e, dt);
+        return;
+      }
+      if (!disabled && e.target && e.dashCD <= 0) {
+        var gap = edgeDist(e, e.target);
+        if (gap >= def.dash.minRange && gap <= def.dash.maxRange) {
+          startDash(game, e);
+          updateDash(game, e, dt);
+          return;
+        }
+      }
+    }
+
     var canAttack = def.damage > 0 && def.hitSpeed > 0;
     var inRange = !!e.target && edgeDist(e, e.target) <= def.range + EPS;
 
@@ -588,7 +775,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
         e.attackCooldown = def.loadTime || 0;
       }
       e.chargeDist = 0;
-      e.attackCooldown -= dt;
+      e.attackCooldown -= dt * (e.rageT > 0 ? RAGE_MULT : 1);
       if (e.attackCooldown <= 0) {
         fire(game, e);
         e.attackCooldown += def.hitSpeed;
@@ -634,9 +821,32 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var pt = { x: x, y: y, r: 0 };
     var radius = card.radius || 0;
     var list = game.entities.slice();
+
+    if (card.lightning) {
+      // Lightning: the highest-hp enemies in radius, up to lightning.targets of them. Towers take reduced damage.
+      var cands = list.filter(function (en) {
+        return !en.dead && en.team !== team && !en.hidden && dist(en, pt) <= radius + en.r;
+      });
+      cands.sort(function (a, b) {
+        return b.hp - a.hp || a.id - b.id;
+      });
+      var n = Math.min(card.lightning.targets, cands.length);
+      for (var j = 0; j < n; j++) {
+        var lt = cands[j];
+        if (lt.kind === 'tower') {
+          damageEntity(game, lt, card.towerDamage || 0);
+          continue;
+        }
+        if (card.lightning.stun) applyDisable(lt, card.lightning.stun, 0);
+        damageEntity(game, lt, card.damage || 0);
+      }
+      game.effects.push({ type: 'lightning', x: x, y: y, radius: radius, t: 0, dur: 0.5, team: team });
+      return;
+    }
+
     for (var i = 0; i < list.length; i++) {
       var en = list[i];
-      if (en.dead || en.team === team) continue;
+      if (en.dead || en.team === team || en.hidden) continue;
       if (dist(en, pt) > radius + en.r) continue;
       if (en.kind === 'tower') {
         damageEntity(game, en, card.towerDamage || 0);
@@ -692,6 +902,36 @@ var CR = (globalThis.CR = globalThis.CR || {});
         tickT: 1,
         done: false,
       });
+      game.effects.push({ type: EFFECT_FOR_CARD[cardId] || 'poison', x: x, y: y, radius: card.radius, t: 0, dur: 0.5, team: team });
+    } else if (card.graveyard) {
+      game.spells.push({
+        kind: 'graveyard',
+        cardId: cardId,
+        team: team,
+        x: x,
+        y: y,
+        radius: card.graveyard.radius,
+        remaining: card.graveyard.duration,
+        nextT: card.graveyard.first,
+        interval: card.graveyard.interval,
+        unit: card.graveyard.unit,
+        done: false,
+      });
+      game.effects.push({ type: 'spawn', x: x, y: y, radius: card.graveyard.radius, t: 0, dur: 0.5, team: team });
+    } else if (card.tornado) {
+      game.spells.push({
+        kind: 'tornado',
+        cardId: cardId,
+        team: team,
+        x: x,
+        y: y,
+        radius: card.radius,
+        remaining: card.tornado.duration,
+        dps: card.tornado.dps,
+        tickT: 0.5,
+        done: false,
+      });
+      game.effects.push({ type: 'tornado', x: x, y: y, radius: card.radius, t: 0, dur: card.tornado.duration, team: team });
     } else if (card.travelSpeed > 0) {
       var k = kingPos(team);
       game.spells.push({
@@ -716,9 +956,98 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var list = game.entities.slice();
     for (var i = 0; i < list.length; i++) {
       var en = list[i];
-      if (en.dead || en.team === s.team) continue;
+      if (en.dead || en.team === s.team || en.hidden) continue;
+      if (card.groundOnly && en.air) continue;
       if (dist(en, pt) > s.radius + en.r) continue;
-      damageEntity(game, en, en.kind === 'tower' ? card.towerDps : card.dps);
+      var dmg = en.kind === 'tower' ? card.towerDps : card.dps;
+      if (en.kind === 'building' && card.buildingMult) dmg *= card.buildingMult;
+      damageEntity(game, en, dmg);
+    }
+  }
+
+  // Tornado: pulls enemy troops to the centre over its lifetime and deals small damage ticks.
+  function updateTornado(game, s, dt) {
+    var rem = s.remaining;
+    s.remaining = rem - dt;
+    s.tickT -= dt;
+    var frac = Math.min(1, dt / Math.max(EPS, rem)); // reaches the centre on the last frame
+    var pulled = [];
+    var list = game.entities.slice();
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.kind !== 'troop' || en.team === s.team) continue;
+      if (dist(en, s) > s.radius + en.r) continue;
+      en.x += (s.x - en.x) * frac;
+      en.y += (s.y - en.y) * frac;
+      pulled.push(en);
+    }
+    if (s.tickT <= 0) {
+      s.tickT += 0.5;
+      for (var p = 0; p < pulled.length; p++) damageEntity(game, pulled[p], s.dps * 0.5);
+    }
+    // A pulled unit inside an inactive enemy King Tower's range wakes it.
+    for (var t = 0; t < game.entities.length; t++) {
+      var king = game.entities[t];
+      if (king.dead || king.kind !== 'tower' || king.towerType !== 'king' || king.team === s.team || king.active) continue;
+      for (var q = 0; q < pulled.length; q++) {
+        if (edgeDist(pulled[q], king) <= king.def.range) {
+          activateKing(game, king);
+          break;
+        }
+      }
+    }
+    if (s.remaining <= 0) s.done = true;
+  }
+
+  // Graveyard: skeletons appear at random points inside the radius, one every interval after the first.
+  function updateGraveyard(game, s, dt) {
+    s.remaining -= dt;
+    s.nextT -= dt;
+    if (s.nextT <= 0 && s.remaining > 0) {
+      s.nextT += s.interval;
+      var a = game.rng() * 2 * Math.PI;
+      var rr = s.radius * Math.sqrt(game.rng());
+      var px = clamp(s.x + rr * Math.cos(a), 0.5, W - 0.5);
+      var py = clamp(s.y + rr * Math.sin(a), 0.5, H - 0.5);
+      spawnUnit(game, s.team, s.unit, px, py, s.cardId);
+      game.effects.push({ type: 'spawn', x: px, y: py, radius: 0.5, t: 0, dur: 0.5, team: s.team });
+    }
+    if (s.remaining <= 0) s.done = true;
+  }
+
+  // Rage zone (Rage spell or a Lumberjack death): own troops inside get the buff.
+  function updateRage(game, s, dt) {
+    s.remaining -= dt;
+    var list = game.entities;
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.kind !== 'troop' || en.team !== s.team) continue;
+      if (dist(en, s) > s.radius + en.r) continue;
+      en.rageT = RAGE_LINGER;
+    }
+    if (s.remaining <= 0) s.done = true;
+  }
+
+  // Executioner axe: out to the far end, then back to the start. Each leg hits a unit once.
+  function updateBoomerang(game, s, dt) {
+    s.p += s.speed * dt * s.phase;
+    if (s.phase === 1 && s.p >= s.length) {
+      s.p = s.length;
+      s.phase = -1;
+      s.hit = {};
+    }
+    if (s.phase === -1 && s.p <= 0) {
+      s.done = true;
+      return;
+    }
+    var pt = { x: s.x + s.dx * s.p, y: s.y + s.dy * s.p, r: 0 };
+    var list = game.entities.slice();
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.team === s.team || !canHitBy(s.targets, en) || s.hit[en.id]) continue;
+      if (dist(en, pt) > s.width + en.r) continue;
+      s.hit[en.id] = true;
+      damageEntity(game, en, s.damage);
     }
   }
 
@@ -752,7 +1081,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
         var list = game.entities;
         for (var j = 0; j < list.length; j++) {
           var en = list[j];
-          if (en.dead || en.team === s.team || en.kind === 'tower') continue;
+          if (en.dead || en.team === s.team || en.kind === 'tower' || en.hidden) continue;
+          if (card.groundOnly && en.air) continue;
           if (dist(en, pt) > s.radius + en.r) continue;
           en.slowT = Math.max(en.slowT, POISON_SLOW_TIME);
           en.slowAmount = card.slow;
@@ -777,6 +1107,14 @@ var CR = (globalThis.CR = globalThis.CR || {});
           }
         }
         if (s.traveled >= s.length) s.done = true;
+      } else if (s.kind === 'tornado') {
+        updateTornado(game, s, dt);
+      } else if (s.kind === 'graveyard') {
+        updateGraveyard(game, s, dt);
+      } else if (s.kind === 'rage') {
+        updateRage(game, s, dt);
+      } else if (s.kind === 'boomerang') {
+        updateBoomerang(game, s, dt);
       }
     }
   }
@@ -784,10 +1122,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
   // ---- projectiles ------------------------------------------------------
 
   function impactProjectile(game, p) {
+    var fx = p.slow ? { slow: p.slow } : undefined;
     if (p.splash > 0) {
-      splashHit(game, p.team, p.targets, p.x, p.y, p.splash, p.damage, 0);
+      splashHit(game, p.team, p.targets, p.x, p.y, p.splash, p.damage, 0, fx);
     } else if (p.target && !p.target.dead) {
       damageEntity(game, p.target, p.damage);
+      if (p.slow) applySlow(p.target, p.slow.amount, p.slow.time);
     }
     game.events.push({ type: 'hit', team: p.team, x: p.x, y: p.y });
     game.effects.push({ type: 'hit', x: p.x, y: p.y, radius: 0.5, t: 0, dur: 0.3, team: p.team });
@@ -1064,8 +1404,13 @@ var CR = (globalThis.CR = globalThis.CR || {});
       if (!card || !isNum(x) || !isNum(y)) return false;
       if (x < 0 || x > W || y < 0 || y > H) return false;
       if (card.type === 'spell') return true;
-      var own = team === 0 ? y >= RIVER_BOTTOM : y <= RIVER_TOP;
-      if (!own && !inPocket(this, team, x, y)) return false;
+      if (card.deployAnywhere) {
+        // Miner: anywhere except the river. Tower footprints are checked below.
+        if (isRiverY(y)) return false;
+      } else {
+        var own = team === 0 ? y >= RIVER_BOTTOM : y <= RIVER_TOP;
+        if (!own && !inPocket(this, team, x, y)) return false;
+      }
       for (var i = 0; i < this.entities.length; i++) {
         var t = this.entities[i];
         if (t.dead || t.kind !== 'tower') continue;

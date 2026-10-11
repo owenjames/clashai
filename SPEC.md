@@ -83,10 +83,13 @@ Entity:
 }
 ```
 
+Entity fields added with the mechanics round (all optional for old code): `shield` (Dark Prince, absorbs damage before hp), `hidden` (Tesla, untargetable until an enemy enters range), `rageT` (seconds of Rage buff left: +35 percent move and attack speed), `dash` (`{ tx, ty, t }` while jumping, Mega Knight and Bandit), `dashCD` (seconds until the next jump), `invulnT` (no damage taken while > 0, Bandit dash).
+
 Projectile: `{ x, y, team, kind, target /*Entity|null*/, tx, ty, speed, damage, splash, fromTower, ... }`.
 Spell: `{ cardId, team, x, y, kind: 'flying'|'poison'|'log', sx, sy /*start*/, t, ... , radius }`.
 Effect: `{ type, x, y, radius, t /*age s*/, dur, team }` where type is one of
 `'hit','splash','zap','arrows','fireball','rocket','freeze','poison','death','deploy','towerDown','spawn','elixir'`
+`'lightning','tornado','rage','dash','chain'` (added with the mechanics round; the renderer may ignore types it does not draw). Extra fields: `'chain'` carries `x0, y0` (the previous link), `'tornado'` and `'rage'` use `dur` for their lifetime and `radius` for the zone.
 (`'elixir'` carries `text: '-4'` shown where a card was played).
 Event: `{ type: 'deploy'|'hit'|'towerDown'|'kingActivate'|'spell'|'death'|'gameOver', team, x, y, cardId? }`.
 
@@ -113,6 +116,16 @@ Event: `{ type: 'deploy'|'hit'|'towerDown'|'kingActivate'|'spell'|'death'|'gameO
 - **Knockback**: ground troops with mass < 15 pushed away from the spell centre by `knockback` tiles (Log pushes toward the log's travel direction). Resets lock and charge.
 - **Spells**: travel from the caster's King Tower position to the target at `travelSpeed` (0 = instant). On impact: `damage` to all enemy troops/buildings in `radius`, `towerDamage` to enemy towers in radius. Arrows/Fireball/Zap/Rocket/Freeze hit ground and air; Log hits ground only. Poison: every 1 s for `duration`, `dps` to troops/buildings, `towerDps` to towers, slow units inside by `slow`. Log: starts at the deploy point and rolls `length` tiles toward the enemy (team 0 rolls to smaller y), `width` wide, hits each ground enemy once. Goblin Barrel: on impact spawns `spawnCount` of `spawnUnit` (deployT 1.0) and no damage.
 - **Determinism**: use a small seeded RNG (mulberry32) stored on the game, never `Math.random`.
+
+### Mechanics added with the mechanics round
+
+Unit fields (in `CR.UNITS`, all optional, default off): `deployTime` (seconds, default 1), `burrow: { time, speed }` (Miner: deploy delay is `time + distance from own king / speed`), `hidden` and `upTime` (Tesla), `spawnHit: { damage, radius, targets, stun, slow }` (landing burst on spawn: Electro Wizard, Mega Knight, Ice Wizard), `multiTargets` and `hitStun` and `effect` (Electro Wizard zaps more than one target and stuns each), `towerDamageMult` (Miner), `dash: { minRange, maxRange, damage, radius, cooldown, time, invuln, targets }` (jump to a target that is `minRange` to `maxRange` tiles edge-to-edge away; the landing deals `damage` in `radius`), `shield` (Dark Prince), `slowOnHit: { amount, time }` (Ice Wizard projectiles), `boomerang: { length, width, time }` (Executioner: axe goes out to `length` and back, hitting each unit once per pass), `deathRage: { radius, duration }` (Lumberjack drops a Rage zone when it dies), `kamikaze.chain: { count, range, stun }` (Electro Spirit: the jump chains to up to `count` enemies). `deathSpawn` is used by Lava Hound (6 Lava Pups). `splash`, `charge` and `projectile` work as before.
+
+Card fields (in `CR.CARDS`): `deployAnywhere` (Miner: any spot except the river and tower footprints), `lightning: { targets, stun }` (hits the `targets` highest-hp enemies in `radius`; towers take `towerDamage`), `tornado: { duration, dps }` (lingering: pulls enemy troops to the centre over `duration`, `dps` damage, wakes an inactive enemy king it pulls into range), `graveyard: { duration, first, interval, unit, radius }` (spawns `unit` at random points in `radius` every `interval` after `first`), `groundOnly` and `buildingMult` (Earthquake, with the poison-style `duration` fields: `dps`, `towerDps`, `slow`).
+
+Tesla is a hidden building (`hidden: true`): it cannot be targeted, does not fire, and rises for `upTime` once an enemy is inside its range.
+
+Lightning and Tornado draw as effects `lightning` and `tornado`. Rage zones (Lumberjack death) draw as `rage`. Dashes draw as `dash`. Electro Spirit chains draw as `chain`.
 
 ## AI: `CR.AI`
 
