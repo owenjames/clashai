@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Render mock</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="../js/cards.js"></script>
+<script src="../js/render.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var renderer = new CR.Renderer(canvas);
+  var dragMode = /drag/.test(location.search);
+
+  function tower(id, team, type, lane, x, y, hp, active) {
+    return { id: id, team: team, kind: 'tower', unitId: type, cardId: null, towerType: type,
+      lane: lane, x: x, y: y, r: type === 'king' ? 2 : 1.5, air: false, hp: hp,
+      maxHp: type === 'king' ? 4824 : 3052, deployT: 0, active: active, target: null,
+      attackCooldown: 0, lastAttackT: -10, facing: 0, stunT: 0, freezeT: 0, slowT: 0,
+      slowAmount: 0, charging: false, rampStage: 0, beamTarget: null, dead: false };
+  }
+
+  function unit(id, team, unitId, x, y, extra) {
+    var base = { id: id, team: team, kind: 'troop', unitId: unitId, cardId: null, towerType: null,
+      lane: -1, x: x, y: y, r: 0.5, air: false, hp: 1000, maxHp: 1000, deployT: 0, active: true,
+      target: null, attackCooldown: 0, lastAttackT: -10, facing: team === 0 ? -Math.PI / 2 : Math.PI / 2,
+      stunT: 0, freezeT: 0, slowT: 0, slowAmount: 0, charging: false, rampStage: 0,
+      beamTarget: null, dead: false };
+    if (extra) for (var k in extra) base[k] = extra[k];
+    return base;
+  }
+
+  function buildGame() {
+    var g = {
+      time: 0,
+      timeLeft: 75,
+      phase: 'regulation',
+      elixirMult: 2,
+      players: [
+        { elixir: 6.4, hand: ['knight', 'giant', 'rocket', 'pekka'], next: 'skeletonarmy', crowns: 1,
+          deck: [] },
+        { elixir: 4.1, hand: ['archers', 'fireball', 'zap', 'witch'], next: 'goblins', crowns: 0,
+          deck: [] }
+      ],
+      result: null,
+      events: [],
+      projectiles: [],
+      spells: [],
+      effects: [],
+      entities: []
+    };
+
+    var ents = g.entities;
+    // Team 0 (bottom): princess left, king. Princess right is alive, king inactive.
+    ents.push(tower(1, 0, 'princess', 0, 3.5, 25.5, 2400, true));
+    ents.push(tower(2, 0, 'princess', 1, 14.5, 25.5, 3052, true));
+    ents.push(tower(3, 0, 'king', -1, 9, 29, 4824, false));
+    // Team 1 (top): princess left alive, princess right destroyed at t = 4 s, king active.
+    ents.push(tower(4, 1, 'princess', 0, 3.5, 6.5, 3052, true));
+    ents.push(tower(5, 1, 'princess', 1, 14.5, 6.5, 3052, true));
+    ents.push(tower(6, 1, 'king', -1, 9, 3, 3500, true));
+
+    // Troops
+    ents.push(unit(10, 0, 'knight', 6, 22, { hp: 900, maxHp: 1766, lastAttackT: 0.05, target: null }));
+    ents.push(unit(11, 0, 'archer', 4.5, 21, { r: 0.4, hp: 304, maxHp: 304 }));
+    ents.push(unit(12, 0, 'archer', 5.3, 21.6, { r: 0.4, hp: 304, maxHp: 304 }));
+    ents.push(unit(13, 0, 'minion', 9, 20, { r: 0.35, air: true, hp: 120, maxHp: 230 }));
+    ents.push(unit(14, 0, 'musketeer', 12, 21, { r: 0.45, deployT: 0.6, hp: 720, maxHp: 720 }));
+    ents.push(unit(15, 0, 'goblin', 15, 19, { r: 0.35, stunT: 0.5, hp: 202, maxHp: 202 }));
+    ents.push(unit(16, 0, 'prince', 9, 19, { r: 0.6, charging: true, hp: 1920, maxHp: 1920 }));
+    ents.push(unit(17, 0, 'skeleton', 8, 23, { r: 0.3, hp: 81, maxHp: 81 }));
+    ents.push(unit(18, 0, 'cannon', 12.5, 27, { r: 1.0, kind: 'building', hp: 500, maxHp: 824 }));
+
+    ents.push(unit(20, 1, 'giant', 9, 11, { r: 0.75, hp: 2000, maxHp: 4091 }));
+    ents.push(unit(21, 1, 'skeleton', 7, 9, { r: 0.3, hp: 81, maxHp: 81 }));
+    ents.push(unit(22, 1, 'skeleton', 7.5, 8.4, { r: 0.3, hp: 81, maxHp: 81 }));
+    ents.push(unit(23, 1, 'babydragon', 12, 10, { r: 0.6, air: true, hp: 900, maxHp: 1152 }));
+    ents.push(unit(24, 1, 'knight', 4, 12, { r: 0.5, freezeT: 2, hp: 1766, maxHp: 1766 }));
+    // Inferno tower beaming the knight at (6, 22).
+    ents.push(unit(25, 1, 'infernotower', 13, 12, { r: 1.0, kind: 'building', hp: 1400, maxHp: 1749,
+      rampStage: 2, beamTarget: ents[6] }));
+
+    // Projectiles
+    g.projectiles.push({ x: 6, y: 8.5, team: 1, kind: 'arrow', target: null, tx: 9, ty: 20, speed: 10, damage: 1 });
+    g.projectiles.push({ x: 8, y: 14, team: 1, kind: 'fire', target: null, tx: 9, ty: 21, speed: 8, damage: 1 });
+    g.projectiles.push({ x: 10, y: 12, team: 1, kind: 'cannonball', target: null, tx: 9, ty: 22, speed: 12, damage: 1 });
+    g.projectiles.push({ x: 12, y: 18, team: 0, kind: 'bomb', target: null, tx: 12, ty: 10, speed: 8, damage: 1 });
+    g.projectiles.push({ x: 4, y: 20, team: 0, kind: 'goo', target: null, tx: 3, ty: 9, speed: 12, damage: 1 });
+    g.projectiles.push({ x: 15, y: 22, team: 0, kind: 'magic', target: null, tx: 13, ty: 12, speed: 10, damage: 1 });
+    g.projectiles.push({ x: 13, y: 16, team: 0, kind: 'ice', target: null, tx: 13, ty: 10, speed: 8, damage: 1 });
+    g.projectiles.push({ x: 6, y: 19, team: 0, kind: 'spear', target: null, tx: 6, ty: 7, speed: 10, damage: 1 });
+    g.projectiles.push({ x: 11, y: 9, team: 1, kind: 'bullet', target: null, tx: 14, ty: 22, speed: 12, damage: 1 });
+
+    // Spells
+    g.spells.push({ cardId: 'poison', team: 1, kind: 'poison', x: 9, y: 7, sx: 9, sy: 3, t: 1, radius: 3.5 });
+    g.spells.push({ cardId: 'log', team: 0, kind: 'log', x: 9, y: 19, sx: 9, sy: 24, t: 1 });
+    g.spells.push({ cardId: 'fireball', team: 1, kind: 'flying', x: 11, y: 14, sx: 9, sy: 3, t: 0.5 });
+
+    // Effects (looped in the animation)
+    g.effects.push({ type: 'hit', x: 6, y: 21, radius: 0.5, t: 0, dur: 0.3, team: 0 });
+    g.effects.push({ type: 'zap', x: 8, y: 13, radius: 2.5, t: 0, dur: 0.4, team: 0, seed: 2 });
+    g.effects.push({ type: 'arrows', x: 4, y: 9, radius: 4, t: 0, dur: 0.6, team: 1 });
+    g.effects.push({ type: 'fireball', x: 12, y: 22, radius: 2.5, t: 0, dur: 0.5, team: 1 });
+    g.effects.push({ type: 'freeze', x: 4, y: 12, radius: 3, t: 0, dur: 0.8, team: 1 });
+    g.effects.push({ type: 'deploy', x: 12, y: 21, radius: 0.6, t: 0, dur: 0.6, team: 0 });
+    g.effects.push({ type: 'towerDown', x: 14.5, y: 6.5, radius: 3, t: 0, dur: 1.0, team: 1 });
+    g.effects.push({ type: 'spawn', x: 7, y: 9, radius: 0.5, t: 0, dur: 0.5, team: 1 });
+    g.effects.push({ type: 'elixir', x: 16, y: 27.5, radius: 0.5, t: 0, dur: 1.2, team: 0, text: '-4' });
+    return g;
+  }
+
+  var game = buildGame();
+  var uiState = { selected: 1, drag: null, team: 0 };
+
+  // Mock deploy zone: own half, out of the river.
+  game.isInDeployZone = function (team, cardId, x, y) {
+    if (team === 0) return y >= 17 && x >= 0 && x <= 18;
+    return y <= 15;
+  };
+  game.canDeploy = function (team, handIndex, x, y) {
+    return game.isInDeployZone(team, game.players[team].hand[handIndex], x, y);
+  };
+
+  var removedRightPrincess = false;
+  var last = performance.now();
+
+  function resize() {
+    renderer.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, {
+      top: 0, bottom: 0, left: 0, right: 0
+    });
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function frame(now) {
+    var dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    game.time += dt;
+    game.effects.forEach(function (f) {
+      f.t += dt;
+      if (f.t >= f.dur) f.t = 0;
+    });
+    if (!removedRightPrincess && game.time >= 4) {
+      removedRightPrincess = true;
+      game.entities = game.entities.filter(function (e) { return e.id !== 5; });
+    }
+    game.projectiles.forEach(function (p) {
+      p.x += (p.tx - p.x) * 0.2;
+      p.y += (p.ty - p.y) * 0.2;
+    });
+
+    if (dragMode) {
+      uiState.drag = { x: window.innerWidth * 0.45, y: window.innerHeight * 0.55 };
+    }
+    renderer.draw(game, uiState);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
