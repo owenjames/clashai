@@ -851,6 +851,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
   };
 
   CR.Bot = Bot;
+  Bot.buildRoles = buildRoles;
 })();
 
 if (typeof module !== 'undefined') module.exports = CR;

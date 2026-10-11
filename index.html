@@ -228,6 +228,67 @@ body.in-battle #game { display: block; }
   100% { transform: scale(.9); opacity: 0; }
 }
 .pmenu { width: min(280px, 80%); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Intro splash: "You" vs "Opponent". */
+.intro {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  background: rgba(4,12,34,.72); pointer-events: none; z-index: 4;
+}
+.intro.on { display: flex; animation: fadein .2s ease-out; }
+.intro .vs { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0 20px; box-sizing: border-box; }
+.intro .who { width: 42%; text-align: center; }
+.intro .who .nm { font-size: 20px; font-weight: 900; text-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.intro .who .tr { font-size: 15px; font-weight: 800; margin-top: 4px; color: var(--gold-hi); }
+.intro .swords { font-size: 56px; animation: slam .45s cubic-bezier(.2,1.4,.4,1) both; }
+.intro .who.r .nm { color: #ffb2ab; }
+.intro .who.b .nm { color: #bcd8ff; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slam { from { transform: scale(2.4) rotate(-20deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* Timed banners that slide across the middle of the arena. */
+.banner {
+  position: absolute; left: 0; right: 0; top: 40%; display: none; flex-direction: column;
+  align-items: center; gap: 4px; pointer-events: none; z-index: 3;
+}
+.banner.on { display: flex; animation: slide 1.9s ease-in-out forwards; }
+.banner .t {
+  font-size: 34px; font-weight: 900; letter-spacing: .5px; color: #fff;
+  text-shadow: 0 4px 0 rgba(0,0,0,.4), 0 0 18px rgba(0,0,0,.25);
+  padding: 6px 22px; border-radius: 14px; background: rgba(10,20,50,.55);
+}
+.banner .s { font-size: 18px; font-weight: 900; padding: 4px 16px; border-radius: 999px; color: #fff; }
+.banner.purple .s { background: linear-gradient(#c96bf5, #7d2fb8); }
+.banner.red .s { background: linear-gradient(#ff7a6e, #d72f28); }
+.banner.gold .s { background: linear-gradient(#ffe36b, #f5a90f); color: #4a2a00; }
+@keyframes slide {
+  0% { transform: translateX(110%); opacity: 0; }
+  12% { transform: translateX(0); opacity: 1; }
+  80% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-110%); opacity: 0; }
+}
+.cd.big { font-size: 150px; }
+.cd.fight { font-size: 84px; color: var(--gold-hi); }
+
+/* Emotes: a button over the arena's bottom-left corner, bubbles fan upward. */
+.emobtn {
+  position: absolute; width: 40px; height: 40px; border-radius: 50%; border: 0; padding: 0;
+  background: rgba(10,30,70,.78); box-shadow: 0 3px 0 rgba(0,0,0,.4); font-size: 20px;
+  display: flex; align-items: center; justify-content: center; pointer-events: auto;
+}
+.emopick {
+  position: absolute; display: none; gap: 8px; pointer-events: auto;
+}
+.emopick.open { display: flex; }
+.emopick button {
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid #fff; padding: 0;
+  background: #fff; font-size: 24px; box-shadow: 0 3px 0 rgba(0,0,0,.3);
+  animation: pop .25s ease-out both;
+}
+
+/* Result: crowns fill in one by one, trophies count up. */
+.crown.earn { animation: crownpop .4s ease-out; }
+@keyframes crownpop { 0% { transform: scale(2); } 60% { transform: scale(.9); } 100% { transform: scale(1); } }
+.trophy .dl { animation: fadein .4s ease-out .3s both; }
 </style>
 </head>
 <body>
@@ -241,6 +302,8 @@ body.in-battle #game { display: block; }
 <div id="probe"></div>
 <script src="js/cards.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/botconfig.js"></script>
+<script src="js/bot.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/render.js"></script>
 <script src="js/audio.js"></script>

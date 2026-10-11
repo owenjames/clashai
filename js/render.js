@@ -2259,7 +2259,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
     // "Next" label above the small card at the far left, which fades in on each change.
     var nr = this.nextRect;
-    var fade = clamp((now - this._nextFadeMs) / 200, 0, 1);
+    // Floor at 0.35 so the preview never vanishes while it fades in.
+    var fade = 0.35 + 0.65 * clamp((now - this._nextFadeMs) / 200, 0, 1);
     ctx.globalAlpha = fade;
     uiText(ctx, 'Next', nr.x + nr.w / 2, nr.y - 8, 9, COL.textDim, '700', 'center', 'middle');
     this._card(p ? p.next : null, nr.x, nr.y, nr.w, nr.h, { compact: true, label: 'Next', elixir: elixir });

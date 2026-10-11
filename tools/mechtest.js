@@ -1564,6 +1564,72 @@ test('40 lumberjack drops a rage zone on death; friendly units inside get the ra
   check(friend.rageT > 0, 'friendly knight did not get the rage buff');
 });
 
+// ---- 41. Tower footprints: steering around towers and buildings ------------
+
+test('41a musketeer behind its own princess tower walks around it at near full speed to the bridge', () => {
+  const g = makeGame(['musketeer', 'archers', 'zap', 'giant', 'minipekka', 'fireball', 'knight', 'babydragon'], FILL, 81);
+  g.players[0].elixir = 10;
+  check(play(g, 0, 'musketeer', 3.5, 27.9), 'musketeer deploys directly behind its princess tower');
+  const m = unitsOf(g, 'musketeer', 0)[0];
+  const tower = towerOf(g, 0, 'princess', 0);
+  let minD = Infinity;
+  let len = 0;
+  let secs = 0;
+  let prev = { x: m.x, y: m.y };
+  for (let i = 0; i < 20 / DT && m.y > RIVER_TOP + 1.5; i++) {
+    g.update(DT);
+    if (m.deployT <= 0) {
+      len += Math.hypot(m.x - prev.x, m.y - prev.y);
+      secs += DT;
+    }
+    prev = { x: m.x, y: m.y };
+    minD = Math.min(minD, Math.hypot(m.x - tower.x, m.y - tower.y));
+  }
+  check(m.y <= RIVER_TOP + 1.5, `musketeer did not reach the bridge (y ${m.y.toFixed(2)})`);
+  check(secs > 0 && len / secs >= 0.85, `musketeer average walk speed ${(len / secs).toFixed(2)} tiles/s, want at least 0.85`);
+  check(minD >= tower.r + m.r - 0.02, `musketeer went inside the tower (closest centre distance ${minD.toFixed(2)})`);
+});
+
+test('41b knight with the enemy king as its goal walks around a building in its path and reaches king range', () => {
+  const g = makeGame(['knight', 'cannon', 'zap', 'giant', 'minipekka', 'fireball', 'musketeer', 'babydragon'],
+    ['zap', 'archers', 'knight', 'giant', 'minipekka', 'fireball', 'musketeer', 'babydragon'], 82);
+  const left = towerOf(g, 1, 'princess', 0);
+  left.hp = 1; // one zap from falling: the lane opens, the king activates
+  g.players[0].elixir = 10;
+  check(play(g, 0, 'zap', 3.5, 6.5), 'zap kills the enemy left princess');
+  check(left.dead, 'left princess did not fall');
+  // A frozen own cannon on the bridge approach, straight in front of the knight.
+  g.players[0].elixir = 10;
+  check(play(g, 0, 'cannon', 3.5, 20.0), 'cannon deploys on the bridge approach');
+  const cannon = unitsOf(g, 'cannon', 0)[0];
+  freeze(cannon);
+  g.players[0].elixir = 10;
+  check(play(g, 0, 'knight', 3.5, 22.5), 'knight deploys behind the cannon');
+  const knight = unitsOf(g, 'knight', 0)[0];
+  const king = towerOf(g, 1, 'king');
+  let minCannonD = Infinity;
+  let walkLen = 0;
+  let walkSecs = 0;
+  let prev = { x: knight.x, y: knight.y };
+  let reached = false;
+  for (let i = 0; i < 25 / DT && !g.result && !knight.dead; i++) {
+    g.update(DT);
+    if (knight.target === king && Math.hypot(knight.x - king.x, knight.y - king.y) - knight.r - king.r <= knight.def.range + 0.05) {
+      reached = true;
+      break;
+    }
+    if (knight.deployT <= 0 && !reached) {
+      walkLen += Math.hypot(knight.x - prev.x, knight.y - prev.y);
+      walkSecs += DT;
+    }
+    prev = { x: knight.x, y: knight.y };
+    minCannonD = Math.min(minCannonD, Math.hypot(knight.x - cannon.x, knight.y - cannon.y));
+  }
+  check(reached, 'knight never got into range of the enemy king');
+  check(minCannonD >= cannon.r + knight.r - 0.02, `knight went through the cannon (closest ${minCannonD.toFixed(2)})`);
+  check(walkSecs > 0 && walkLen / walkSecs >= 0.85 * 1.0, `knight average walk speed ${(walkLen / walkSecs).toFixed(2)} tiles/s, want at least 0.85`);
+});
+
 // ---- runner ----------------------------------------------------------------
 
 function main() {

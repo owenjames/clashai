@@ -18,6 +18,7 @@ CR.UI = (function () {
   var TARGETS = { ground: 'Ground', both: 'Air and ground', buildings: 'Buildings' };
   var TITLES = { win: 'Victory', loss: 'Defeat', draw: 'Draw' };
   var REASONS = { king: 'King tower destroyed', tiebreak: 'Tiebreak', forfeit: 'Forfeit' };
+  var EMOTES = ['😀', '😡', '👍', '😭'];
   var COLLECTION = Object.keys(CR.CARDS).sort(function (a, b) {
     var A = CR.CARDS[a], B = CR.CARDS[b];
     return A.cost - B.cost || A.name.localeCompare(B.name);
@@ -235,21 +236,55 @@ CR.UI = (function () {
 
   // ---- result ----
 
+  // Result screen. Crowns light up in order, trophies count from the old total to the new one.
   function showResult(r) {
     var delta = r.delta > 0 ? '+' + r.delta : String(r.delta);
     var dcls = r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : '';
+    var from = r.before != null ? r.before : r.trophies;
     el.result.innerHTML =
       '<div class="res ' + r.outcome + '">' +
         '<h1 class="rtitle">' + TITLES[r.outcome] + '</h1>' +
         '<div class="crowns">' +
-          '<div class="side">' + crowns(r.crowns[0], CR.TEAM_COLORS[0].main) + '</div>' +
-          '<div class="side">' + crowns(r.crowns[1], CR.TEAM_COLORS[1].main) + '</div>' +
+          '<div class="side" data-crowns="0">' + crowns(0, CR.TEAM_COLORS[0].main) + '</div>' +
+          '<div class="side" data-crowns="1">' + crowns(0, CR.TEAM_COLORS[1].main) + '</div>' +
         '</div>' +
-        '<div class="trophy"><span>🏆</span><b>' + r.trophies + '</b><span class="delta ' + dcls + '">' + delta + '</span></div>' +
+        '<div class="trophy"><span>🏆</span><b class="tv">' + from + '</b><span class="delta dl ' + dcls + '">' + delta + '</span></div>' +
         (REASONS[r.reason] ? '<p class="why">' + REASONS[r.reason] + '</p>' : '') +
         '<button class="btn gold" data-act="ok">OK</button>' +
       '</div>';
     showScreen('result');
+
+    // Crowns: fill each earned crown in turn.
+    var steps = [];
+    for (var s = 0; s < 2; s++) {
+      for (var i = 1; i <= r.crowns[s]; i++) steps.push({ side: s, n: i });
+    }
+    steps.forEach(function (st, k) {
+      setTimeout(function () {
+        var side = el.result.querySelector('[data-crowns="' + st.side + '"]');
+        if (!side) return;
+        side.innerHTML = crowns(st.n, CR.TEAM_COLORS[st.side].main);
+        var c = side.children[st.n - 1];
+        if (c) c.setAttribute('class', 'crown earn');
+        if (CR.Audio) CR.Audio.play('crown');
+      }, 500 + k * 350);
+    });
+
+    // Trophies: count from the old total to the new total.
+    var tv = el.result.querySelector('.tv');
+    var dur = 900;
+    var delay = 500 + Math.max(1, steps.length) * 350 + 200;
+    var t0 = 0;
+    function tick() {
+      var p = Math.min(1, Math.max(0, (nowMs() - t0) / dur));
+      if (tv) tv.textContent = String(Math.round(from + (r.trophies - from) * p));
+      if (p < 1 && tv) requestAnimationFrame(tick);
+    }
+    setTimeout(function () { t0 = nowMs(); requestAnimationFrame(tick); }, delay);
+  }
+
+  function nowMs() {
+    return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
   }
 
   // ---- battle HUD ----
@@ -258,15 +293,66 @@ CR.UI = (function () {
     el.pause.classList.toggle('open', !!on);
   }
 
-  function setCountdown(text) {
+  // Big centre text: countdown 3-2-1, final-10s numbers (big), or "Fight!" (fight).
+  function setCountdown(text, kind) {
     var c = $('cd');
     c.textContent = text ? String(text) : '';
-    c.classList.toggle('on', !!text);
+    c.className = 'cd' + (text ? ' on' : '') + (kind ? ' ' + kind : '');
     if (text) {
-      c.classList.remove('pop');
       void c.offsetWidth; // restart the pop animation
       c.classList.add('pop');
     }
+  }
+
+  // Intro splash: you vs opponent with trophy counts. Calls done when it hides.
+  function showIntro(you, opp, done) {
+    var box = $('intro');
+    box.innerHTML =
+      '<div class="vs">' +
+        '<div class="who b"><div class="nm">You</div><div class="tr">🏆 ' + you + '</div></div>' +
+        '<div class="swords">⚔️</div>' +
+        '<div class="who r"><div class="nm">Opponent</div><div class="tr">🏆 ' + opp + '</div></div>' +
+      '</div>';
+    box.classList.add('on');
+    setTimeout(function () {
+      box.classList.remove('on');
+      if (done) done();
+    }, 1500);
+  }
+
+  // Slides a message across the middle. cls: 'purple' | 'red' | 'gold' or none.
+  function showBanner(title, sub, cls) {
+    var b = $('banner');
+    b.className = 'banner ' + (cls || '');
+    b.innerHTML = '<div class="t">' + esc(title) + '</div>' + (sub ? '<div class="s">' + esc(sub) + '</div>' : '');
+    void b.offsetWidth; // restart the slide
+    b.classList.add('on');
+  }
+
+  // Places the emote button at the arena's bottom-left corner and its picker above it.
+  function layoutHud(rect) {
+    if (!rect) return;
+    var btn = $('emobtn');
+    btn.style.left = rect.x + 'px';
+    btn.style.top = rect.y + 'px';
+    var pick = $('emopick');
+    pick.style.left = rect.x + 'px';
+    pick.style.top = rect.y - 54 + 'px';
+  }
+
+  // Emote button enabled only during play.
+  function setEmoteEnabled(on) {
+    var btn = $('emobtn');
+    btn.style.display = on ? 'flex' : 'none';
+    if (!on) closeEmotes();
+  }
+
+  function closeEmotes() {
+    $('emopick').classList.remove('open');
+  }
+
+  function toggleEmotes() {
+    $('emopick').classList.toggle('open');
   }
 
   function showScreen(name) {
@@ -338,12 +424,18 @@ CR.UI = (function () {
 
   function bindHud() {
     el.hud.addEventListener('click', function (e) {
+      var em = e.target.closest('[data-emote]');
+      if (em) {
+        closeEmotes();
+        return app.onEmote(em.getAttribute('data-emote'));
+      }
       var b = e.target.closest('[data-act]');
       if (!b) return;
       var a = b.getAttribute('data-act');
       if (a === 'pause') app.onPause();
       else if (a === 'resume') app.onResume();
       else if (a === 'forfeit') app.onForfeit();
+      else if (a === 'emotes') toggleEmotes();
     });
   }
 
@@ -371,6 +463,14 @@ CR.UI = (function () {
         '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2"/>' +
         '<rect x="14" y="5" width="4" height="14" rx="1.2"/></svg></button>' +
       '<div class="cd" id="cd"></div>' +
+      '<div class="intro" id="intro"></div>' +
+      '<div class="banner" id="banner"></div>' +
+      '<button class="emobtn" id="emobtn" data-act="emotes" aria-label="Emotes">😀</button>' +
+      '<div class="emopick" id="emopick">' +
+        EMOTES.map(function (em) {
+          return '<button data-emote="' + em + '">' + em + '</button>';
+        }).join('') +
+      '</div>' +
       '<div class="overlay" id="pause"><div class="panel pmenu">' +
         '<button class="btn gold" data-act="resume">Resume</button>' +
         '<button class="btn red" data-act="forfeit">Forfeit</button>' +
@@ -390,6 +490,11 @@ CR.UI = (function () {
     openDeck: openDeck,
     showResult: showResult,
     setPaused: setPaused,
-    setCountdown: setCountdown
+    setCountdown: setCountdown,
+    showIntro: showIntro,
+    showBanner: showBanner,
+    layoutHud: layoutHud,
+    setEmoteEnabled: setEmoteEnabled,
+    EMOTES: EMOTES
   };
 })();

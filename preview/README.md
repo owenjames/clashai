@@ -5,11 +5,11 @@ A standalone three.js page that shows free CC0 models arranged like a Clash Roya
 ## What is shown
 
 - An 18 x 32 tile arena with a checkered grass field and a river across the middle.
-- Two bridges (one per lane), blue towers at the bottom (two princess towers and a king), red towers at the top.
+- Two plank bridges (one per lane), blue towers at the bottom (two princess towers and a king), red towers at the top. Towers, bridges and the dirt border are procedural (three.js boxes), not downloaded models.
 - A demo battle loop: troops from each team walk across the bridges, switch to Attack when in range, play Death, and respawn after a few seconds. One blue baby dragon flies.
 - Two rotating cannons, trees at the arena edges and rocks on the riverbanks.
 - Team colour is applied as a tint on a cloned material. Units have a coloured ring underfoot and a health bar.
-- A Sprites button switches troops to pre-rendered billboard sprites. Each troop is rendered once to a 128 x 128 offscreen target from the same camera pitch (58 degrees), so you can compare live 3D with the sprite look. Towers and cannons stay 3D.
+- A Sprites button switches troops to pre-rendered billboard sprites. Each troop is rendered once to a 128 x 128 offscreen target from the same camera pitch (52 degrees), so you can compare live 3D with the sprite look. Towers and cannons stay 3D.
 
 ## How to run
 
@@ -41,7 +41,7 @@ Then open http://localhost:8090/preview/index.html. On an iPhone, use the Mac's 
 | Hog rider (stand-in) | Pig with knight on top | Pig: Run, Walk, Headbutt, Death; rider: knight clips |
 | Baby dragon | Dragon | Dragon_Flying, Dragon_Attack, Dragon_Death |
 
-Troops with animations: all nine above. Static models: towers, cannon, trees, pines, rock, bridge.
+Troops with animations: all nine above. Static models: cannon, trees, pines, rock. Towers and bridges are procedural.
 
 ## Tuning
 
@@ -54,6 +54,6 @@ The loop runs on `requestAnimationFrame` with a delta-time cap of 50 ms. The tit
 ## Known gaps
 
 - The Mini P.E.K.K.A and Hog Rider are stand-ins, not the real Clash Royale characters.
-- Several models have their own proportions (the king tower is a castle wall; the archer is a gunner). Judge the style, not the exact shapes.
+- The archer is a gunner pose and the knight on the king tower is gold-tinted for a crown look. Judge the style, not the exact shapes.
 - The sprite mode uses a single idle frame per troop, not a set of animation frames.
 - Only the Quaternius models were used. No Kenney kit was downloaded.

@@ -50,6 +50,28 @@ CR.Audio = (function () {
     elixirFull: [
       { f: 880, type: 'sine', dur: 0.08, v: 0.05 },
       { f: 1320, type: 'sine', dur: 0.12, v: 0.05, d: 0.09 }
+    ],
+    // Intro splash and banners.
+    vs: [
+      { f: 220, f2: 660, type: 'sawtooth', dur: 0.35, v: 0.04 },
+      { f: 880, type: 'triangle', dur: 0.2, v: 0.06, d: 0.3 }
+    ],
+    fight: [
+      { f: 523, type: 'square', dur: 0.12, v: 0.05 },
+      { f: 784, type: 'square', dur: 0.12, v: 0.05, d: 0.1 },
+      { f: 1047, type: 'square', dur: 0.3, v: 0.06, d: 0.2 }
+    ],
+    banner: [{ f: 300, f2: 900, type: 'triangle', dur: 0.25, v: 0.05 }],
+    overtime: [
+      { f: 392, type: 'sawtooth', dur: 0.25, v: 0.05 },
+      { f: 311, type: 'sawtooth', dur: 0.25, v: 0.05, d: 0.25 },
+      { f: 262, type: 'sawtooth', dur: 0.5, v: 0.05, d: 0.5 }
+    ],
+    // Emote pop and crown earned.
+    emote: [{ f: 660, f2: 990, type: 'sine', dur: 0.12, v: 0.06 }],
+    crown: [
+      { f: 784, type: 'triangle', dur: 0.12, v: 0.07 },
+      { f: 1175, type: 'triangle', dur: 0.25, v: 0.07, d: 0.1 }
     ]
   };
 

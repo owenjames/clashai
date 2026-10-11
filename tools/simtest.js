@@ -118,7 +118,73 @@ function botAct(game, bot) {
   }
 }
 
-function runMatch(seed) {
+// Walk-speed check: a ground troop that is walking must average at least 70 percent of its speed over each
+// 1 s window. Walking excludes attacking, deploying, stunned, frozen, slowed and raged troops. A window is
+// not counted when the troop was within 1.5 tiles of its target, touched another troop at any step, or was
+// squeezed between two or more towers or buildings (a crowd or pocket pushes it around, not a footprint). Other windows that touched a tower or building
+// are reported as a separate failure.
+const WALK_WINDOW = 1.0;
+const WALK_MIN = 0.7;
+function edgeDistTo(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r;
+}
+function makeWalkTracker() {
+  return { anchor: new Map(), slow: 0, crowdExcluded: 0, bldSlow: 0, windows: 0, worst: null };
+}
+function trackWalk(game, tr, tag) {
+  const seen = new Set();
+  for (const e of game.entities) {
+    if (e.kind !== 'troop' || e.air || e.dead || !(e.def.speed > 0)) continue;
+    seen.add(e);
+    const walking =
+      e.deployT <= 0 && !e.hidden && e.stunT <= 0 && e.freezeT <= 0 && e.slowT <= 0 && e.rageT <= 0 &&
+      !e.charging && !e.dash && !(e.target && edgeDistTo(e, e.target) <= e.def.range + 0.05);
+    let a = tr.anchor.get(e);
+    if (!walking) {
+      tr.anchor.delete(e);
+      continue;
+    }
+    if (!a) {
+      a = { t: game.time, x: e.x, y: e.y, crowd: false, bld: false };
+      tr.anchor.set(e, a);
+    }
+    let crowd = !!(e.target && edgeDistTo(e, e.target) < 1.5);
+    let bldContacts = 0;
+    for (const o of game.entities) {
+      if (o === e || o.dead) continue;
+      const d = Math.hypot(o.x - e.x, o.y - e.y);
+      if (o.kind === 'troop') {
+        if (d < e.r + o.r + 0.5) crowd = true;
+      } else if (d < e.r + o.r + 0.6) {
+        bldContacts++;
+      }
+    }
+    // Squeezed between two or more towers or buildings: a pocket that is narrower than the troop, not a crawl.
+    if (bldContacts >= 2) crowd = true;
+    a.crowd = a.crowd || crowd;
+    a.bld = a.bld || bldContacts === 1;
+    const dt = game.time - a.t;
+    if (dt + 1e-9 >= WALK_WINDOW) {
+      tr.windows++;
+      const avg = Math.hypot(e.x - a.x, e.y - a.y) / dt;
+      if (avg < WALK_MIN * e.def.speed) {
+        if (a.crowd) {
+          tr.crowdExcluded++;
+        } else {
+          tr.slow++;
+          if (a.bld) tr.bldSlow++;
+          if (!tr.worst || avg / e.def.speed < tr.worst.ratio) {
+            tr.worst = { tag, unit: e.unitId, ratio: avg / e.def.speed, at: game.time, x: e.x, y: e.y };
+          }
+        }
+      }
+      tr.anchor.set(e, { t: game.time, x: e.x, y: e.y, crowd: false, bld: false });
+    }
+  }
+  for (const k of [...tr.anchor.keys()]) if (!seen.has(k)) tr.anchor.delete(k);
+}
+
+function runMatch(seed, tr) {
   const rng = mulberry32(seed * 7919 + 13);
   const pick = () => (rng() < 0.3 ? CR.DEFAULT_DECK : CR.AI_DECKS[Math.floor(rng() * CR.AI_DECKS.length)]);
   const decks = [pick(), pick()];
@@ -133,6 +199,7 @@ function runMatch(seed) {
   while (ok && !game.result && game.time < MAX_TIME) {
     for (const b of bots) botAct(game, b);
     game.update(DT);
+    trackWalk(game, tr, tag);
     towerDowns += game.events.filter((ev) => ev.type === 'towerDown').length;
     ok = checkState(game, tag);
   }
@@ -348,9 +415,10 @@ function main() {
   runFocusedTests();
 
   const results = [];
+  const tr = makeWalkTracker();
   for (let s = 1; s <= MATCHES; s++) {
     try {
-      results.push(runMatch(s));
+      results.push(runMatch(s, tr));
     } catch (err) {
       failures.push(`seed ${s}: threw ${err.stack || err}`);
     }
@@ -377,6 +445,10 @@ function main() {
   console.log(`avg crowns per team: ${(totalCrowns / n).toFixed(2)}`);
   console.log(`avg crown towers destroyed per match: ${(totalTowerDowns / n).toFixed(2)}`);
   check(totalTowerDowns / n > 0, 'troops never destroyed a tower across random matches');
+  console.log(`walk windows: ${tr.windows}, below ${WALK_MIN * 100}% of speed: ${tr.slow + tr.crowdExcluded} (${tr.crowdExcluded} with troop crowding, not counted)`);
+  if (tr.worst) console.log(`  worst open-ground window: ${tr.worst.tag} ${tr.worst.unit} at ${tr.worst.at.toFixed(1)} s (${tr.worst.x.toFixed(1)}, ${tr.worst.y.toFixed(1)}) ${(tr.worst.ratio * 100).toFixed(0)}%`);
+  check(tr.slow === 0, `${tr.slow} one-second walk window(s) below ${WALK_MIN * 100}% of unit speed without troop crowding`);
+  check(tr.bldSlow === 0, `${tr.bldSlow} slow walk window(s) touched a tower or building`);
 
   if (failures.length > 0) {
     console.log(`\n${failures.length} failure(s):`);

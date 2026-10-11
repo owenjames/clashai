@@ -11,8 +11,7 @@
     font-family: -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif; color: #f2f5fa; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   .chip { position: fixed; background: rgba(12, 18, 28, 0.72); border-radius: 10px; font-size: 13px; line-height: 1; }
-  #title { top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; padding: 7px 10px; }
-  #fps { opacity: 0.7; margin-left: 6px; }
+  #fps { top: calc(env(safe-area-inset-top, 0px) + 8px); left: 8px; padding: 5px 7px; font-size: 11px; opacity: 0.7; }
   #mode { bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); right: 12px; padding: 10px 14px;
     border: 0; color: #f2f5fa; font: inherit; cursor: pointer; }
   #load { top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 10px 14px; }
@@ -28,7 +27,7 @@
 </script>
 </head>
 <body>
-<div id="title" class="chip">Arena asset preview<span id="fps"></span></div>
+<div id="fps" class="chip"></div>
 <button id="mode" class="chip" type="button" disabled>Sprites</button>
 <div id="load" class="chip">Loading models</div>
 
@@ -42,22 +41,22 @@ const BASE = 'assets/polypizza/';
 const FILES = {
   knight: 'knight.glb', archer: 'archer.glb', giant: 'giant.glb', goblin: 'goblin.glb',
   skeleton: 'skeleton.glb', wizard: 'wizard.glb', pekka: 'pekka.glb', hog: 'hog.glb',
-  dragon: 'dragon.glb', princess: 'princess_tower.glb', king: 'king_tower.glb',
-  cannon: 'cannon.glb', tree: 'tree.glb', pine: 'pine.glb', rock: 'rock.glb', bridge: 'bridge.glb',
+  dragon: 'dragon.glb', cannon: 'cannon.glb', tree: 'tree.glb', pine: 'pine.glb', rock: 'rock.glb',
 };
 // h = target height in tiles. Animation overrides map a role to a clip name.
 const TROOPS = {
-  knight:   { h: 1.0,  hp: 70,  dmg: 14, range: 1.0, speed: 1.1, sight: 4.0, anim: {} },
-  archer:   { h: 1.0,  hp: 45,  dmg: 9,  range: 4.0, speed: 1.0, sight: 6.0, anim: { walk: 'Walk_Gun', attack: 'Idle_Gun' } },
-  giant:    { h: 1.8,  hp: 190, dmg: 18, range: 1.0, speed: 0.6, sight: 4.0, anim: {} },
-  goblin:   { h: 0.65, hp: 35,  dmg: 8,  range: 0.9, speed: 1.7, sight: 4.0, anim: {} },
-  skeleton: { h: 0.85, hp: 28,  dmg: 7,  range: 0.9, speed: 1.3, sight: 4.0, anim: {} },
-  wizard:   { h: 1.05, hp: 50,  dmg: 13, range: 3.0, speed: 0.9, sight: 6.0, anim: { attack: 'Bite_Front' } },
-  pekka:    { h: 1.35, hp: 200, dmg: 22, range: 1.0, speed: 0.8, sight: 4.0, anim: { attack: 'Attack' } },
-  hog:      { h: 0.95, hp: 110, dmg: 12, range: 1.0, speed: 1.7, sight: 4.0, anim: { attack: 'Headbutt' }, rider: true, barY: 1.55 },
-  dragon:   { h: 1.2,  hp: 150, dmg: 10, range: 2.4, speed: 1.4, sight: 9.0, anim: { walk: 'Dragon_Flying', idle: 'Dragon_Flying', attack: 'Dragon_Attack', death: 'Dragon_Death' }, flying: true },
+  knight:   { h: 1.4,  hp: 70,  dmg: 14, range: 1.0, speed: 1.1, sight: 4.0, anim: {} },
+  archer:   { h: 1.3,  hp: 45,  dmg: 9,  range: 4.0, speed: 1.0, sight: 6.0, anim: { walk: 'Walk_Gun', attack: 'Idle_Gun' } },
+  giant:    { h: 2.6,  hp: 190, dmg: 18, range: 1.0, speed: 0.6, sight: 4.0, anim: {} },
+  goblin:   { h: 1.0,  hp: 35,  dmg: 8,  range: 0.9, speed: 1.7, sight: 4.0, anim: {} },
+  skeleton: { h: 0.9,  hp: 28,  dmg: 7,  range: 0.9, speed: 1.3, sight: 4.0, anim: {} },
+  wizard:   { h: 1.4,  hp: 50,  dmg: 13, range: 3.0, speed: 0.9, sight: 6.0, anim: { attack: 'Bite_Front' } },
+  pekka:    { h: 1.8,  hp: 200, dmg: 22, range: 1.0, speed: 0.8, sight: 4.0, anim: { attack: 'Attack' } },
+  hog:      { h: 1.2,  hp: 110, dmg: 12, range: 1.0, speed: 1.7, sight: 4.0, anim: { attack: 'Headbutt' }, rider: true, barY: 2.0 },
+  // dragon: h is the longest dimension (wingspan), not height
+  dragon:   { h: 2.0,  hp: 150, dmg: 10, range: 2.4, speed: 1.4, sight: 9.0, anim: { walk: 'Dragon_Flying', idle: 'Dragon_Flying', attack: 'Dragon_Attack', death: 'Dragon_Death' }, flying: true, byMax: true },
 };
-const HEIGHTS = { princess: 3.2, king: 3.8, cannon: 1.25, tree: 2.6, pine: 2.9, rock: 0.7 };
+const HEIGHTS = { cannon: 1.25, tree: 2.6, pine: 2.9, rock: 0.7 };
 const TEAM = {
   blue: { color: new THREE.Color(0x2e7dff), tint: 0.45, bar: 0x44dd66, sprite: new THREE.Color(0.6, 0.8, 1.0) },
   red:  { color: new THREE.Color(0xff3b3b), tint: 0.45, bar: 0xff5555, sprite: new THREE.Color(1.0, 0.62, 0.62) },
@@ -71,7 +70,7 @@ const ANIM_PREF = {
 // Lanes: princess tower x positions, which also set the bridge x positions.
 const LANES = [3.5, 14.5];
 const RIVER = { z0: 15, z1: 17, mid: 16 };
-const PITCH = THREE.MathUtils.degToRad(58); // camera look-down angle
+const PITCH = THREE.MathUtils.degToRad(52); // camera look-down angle
 const CAM_TARGET = new THREE.Vector3(9, 0, 16);
 // Slots keep a fixed roster per team; a dead unit respawns in its slot after a delay.
 const SLOT_DEFS = [
@@ -94,7 +93,7 @@ document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1d2a38);
-const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 300);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 300);
 
 const hemi = new THREE.HemisphereLight(0xdff3ff, 0x3d5a2a, 1.1);
 scene.add(hemi);
@@ -109,13 +108,13 @@ sun.shadow.bias = -0.0008;
 sun.shadow.normalBias = 0.02;
 scene.add(sun, sun.target);
 
-// Fit the camera so the whole arena (plus edge decor) fits the screen width.
+// Fit the camera so the 18-tile arena spans the viewport width (small margin) and all 32 tiles show.
 function fitCamera() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   const dir = new THREE.Vector3(0, Math.sin(PITCH), -Math.cos(PITCH));
   const corners = [];
-  for (const x of [-1.5, 19.5]) for (const z of [-1.5, 33]) for (const y of [0, 4]) corners.push(new THREE.Vector3(x, y, z));
+  for (const x of [-0.8, 18.8]) for (const z of [-1, 33]) for (const y of [0, 3.5]) corners.push(new THREE.Vector3(x, y, z));
   const v = new THREE.Vector3();
   let lo = 5, hi = 200;
   for (let i = 0; i < 40; i++) {
@@ -123,7 +122,7 @@ function fitCamera() {
     camera.position.copy(CAM_TARGET).addScaledVector(dir, mid);
     camera.lookAt(CAM_TARGET);
     camera.updateMatrixWorld();
-    const fits = corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) <= 0.96 && Math.abs(v.y) <= 0.9; });
+    const fits = corners.every(c => { v.copy(c).project(camera); return Math.abs(v.x) <= 0.97 && Math.abs(v.y) <= 0.95; });
     if (fits) hi = mid; else lo = mid;
   }
   camera.position.copy(CAM_TARGET).addScaledVector(dir, hi);
@@ -142,10 +141,23 @@ function canvasTexture(w, h, draw) {
 }
 const grassTex = canvasTexture(18 * 24, 32 * 24, (g, w, h) => {
   for (let y = 0; y < 32; y++) for (let x = 0; x < 18; x++) {
-    g.fillStyle = (x + y) % 2 ? '#6fb34a' : '#64a842';
+    g.fillStyle = (x + y) % 2 ? '#6aae47' : '#65a944';
     g.fillRect(x * 24, y * 24, 24, 24);
   }
 });
+// Light dirt/stone border around the playfield (0.6 tile wide on every side).
+const dirtTex = canvasTexture(192, 332, (g, w, h) => {
+  g.fillStyle = '#c4aa7d'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 1400; i++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(90,70,40,0.18)' : 'rgba(255,240,210,0.18)';
+    g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+});
+const border = new THREE.Mesh(new THREE.PlaneGeometry(19.2, 33.2), new THREE.MeshStandardMaterial({ map: dirtTex, roughness: 1 }));
+border.rotation.x = -Math.PI / 2;
+border.position.set(9, -0.01, 16);
+border.receiveShadow = true;
+scene.add(border);
 grassTex.magFilter = THREE.NearestFilter;
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(18, 32), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 }));
 ground.rotation.x = -Math.PI / 2;
@@ -180,7 +192,7 @@ const gltfLoader = new GLTFLoader();
 const gltfs = {};
 
 // Scale a model so its Y extent equals `height`, with feet at y=0 and centred on x/z.
-function normalizeTo(obj, height) {
+function normalizeTo(obj, height, byMax = false) {
   const wrap = new THREE.Group();
   wrap.add(obj);
   // Non-precise bounds: for SkinnedMesh three.js then uses the skinned bounding box, which
@@ -189,27 +201,11 @@ function normalizeTo(obj, height) {
   obj.traverse(o => { if (o.isSkinnedMesh) o.computeBoundingBox(); });
   let box = new THREE.Box3().setFromObject(wrap, false);
   const size = box.getSize(new THREE.Vector3());
-  obj.scale.multiplyScalar(height / Math.max(size.y, 1e-5));
+  const ref = byMax ? Math.max(size.x, size.y, size.z) : size.y;
+  obj.scale.multiplyScalar(height / Math.max(ref, 1e-5));
   wrap.updateMatrixWorld(true);
   obj.traverse(o => { if (o.isSkinnedMesh) o.computeBoundingBox(); });
   box = new THREE.Box3().setFromObject(wrap, false);
-  const c = box.getCenter(new THREE.Vector3());
-  obj.position.set(-c.x, -box.min.y, -c.z);
-  return wrap;
-}
-
-// Bridges run along z (across the river) and span two lanes wide.
-function bridgeTemplate(obj) {
-  const wrap = new THREE.Group();
-  wrap.add(obj);
-  let size = new THREE.Box3().setFromObject(wrap, true).getSize(new THREE.Vector3());
-  if (size.x > size.z) obj.rotation.y = Math.PI / 2;
-  wrap.updateMatrixWorld(true);
-  size = new THREE.Box3().setFromObject(wrap, true).getSize(new THREE.Vector3());
-  const sx = 2.1 / size.x, sz = 4.2 / size.z;
-  obj.scale.set(sx, (sx + sz) / 2, sz);
-  wrap.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(wrap, true);
   const c = box.getCenter(new THREE.Vector3());
   obj.position.set(-c.x, -box.min.y, -c.z);
   return wrap;
@@ -286,7 +282,7 @@ function buildVisual(type, team, shadows) {
   if (cfg.rider) {
     const rider = buildPart('riderKnight', team, shadows);
     rider.act = resolveActs(rider);
-    rider.obj.position.set(0, 0.5, -0.05);
+    rider.obj.position.set(0, 0.62, -0.05);
     root.add(rider.obj);
     parts.push(rider);
   }
@@ -302,32 +298,123 @@ const setLoad = (text, err) => {
 
 function buildTemplates() {
   // The rider is a second copy of the knight, taken before the knight template is normalized.
-  TPL.riderKnight = normalizeTo(SkeletonUtils.clone(gltfs.knight.scene), 0.55);
+  TPL.riderKnight = normalizeTo(SkeletonUtils.clone(gltfs.knight.scene), 0.8);
   CLIPS.riderKnight = gltfs.knight.animations;
   for (const type of Object.keys(TROOPS)) {
-    TPL[type] = normalizeTo(gltfs[type].scene, TROOPS[type].h);
+    TPL[type] = normalizeTo(gltfs[type].scene, TROOPS[type].h, !!TROOPS[type].byMax);
     CLIPS[type] = gltfs[type].animations;
   }
   for (const key of Object.keys(HEIGHTS)) {
     TPL[key] = normalizeTo(gltfs[key].scene, HEIGHTS[key]);
     CLIPS[key] = gltfs[key].animations;
   }
-  TPL.bridge = bridgeTemplate(gltfs.bridge.scene);
+}
+
+// ---------- procedural towers and bridges ----------
+const STONE = new THREE.Color(0xd9ccb2);
+const STONE_DARK = new THREE.MeshStandardMaterial({ color: 0x9a8f7c, roughness: 0.95 });
+function boxMesh(parent, w, h, d, mat, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+// A unit model standing still (idle pose), placed on a tower deck.
+function standing(key, team, scale, x, y, z) {
+  const p = buildPart(key, team, true);
+  p.act = resolveActs(p);
+  playRole(p, 'idle');
+  p.obj.scale.setScalar(scale);
+  p.obj.position.set(x, y, z);
+  return p;
+}
+function goldify(obj) {
+  const gold = new THREE.Color(0xffc53d);
+  obj.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.lerp(gold, 0.55); } });
+}
+// Clash-style tower: stone block (team tint only on the trim), merlons, team flags.
+// princess = 2.8 tile footprint with an archer on top; king = 3.8 tile footprint with a gold knight and a cannon.
+function buildTower(kind, team) {
+  const king = kind === 'king';
+  const S = king ? 3.8 : 2.8, H = king ? 2.6 : 2.0;
+  const g = new THREE.Group();
+  const stone = new THREE.MeshStandardMaterial({ color: STONE.clone().lerp(TEAM[team].color, 0.08), roughness: 0.9 });
+  const trim = new THREE.MeshStandardMaterial({ color: TEAM[team].color, roughness: 0.5 });
+  const flagMat = new THREE.MeshStandardMaterial({ color: TEAM[team].color, roughness: 0.6, side: THREE.DoubleSide });
+  boxMesh(g, S + 0.3, 0.2, S + 0.3, STONE_DARK, 0, 0.1, 0);              // plinth
+  boxMesh(g, S, H, S, stone, 0, H / 2, 0);                                // body
+  for (const sx of [-1, 1]) for (const sz of [-1, 1])                    // darker corner bevels
+    boxMesh(g, 0.34, H, 0.34, STONE_DARK, sx * (S / 2 - 0.1), H / 2, sz * (S / 2 - 0.1));
+  boxMesh(g, S + 0.1, 0.22, S + 0.1, trim, 0, H + 0.11, 0);               // team trim band
+  boxMesh(g, S - 0.5, 0.14, S - 0.5, stone, 0, H + 0.29, 0);              // top deck
+  const merlonY = H + 0.42 + 0.17, mz = S / 2 - 0.2;                      // crenellations
+  for (let i = 0; i < 3; i++) {
+    const p = -S / 2 + 0.45 + i * (S - 0.9) / 2;
+    for (const s of [-1, 1]) {
+      boxMesh(g, 0.45, 0.34, 0.45, stone, p, merlonY, s * mz);
+      boxMesh(g, 0.45, 0.34, 0.45, stone, s * mz, merlonY, p);
+    }
+  }
+  // Flags: one on the princess tower, four on the king tower.
+  const topY = H + 0.76, poleH = king ? 1.1 : 0.9;
+  const corners = king ? [[-1, -1], [1, -1], [-1, 1], [1, 1]] : [[0, 0]];
+  for (const [px, pz] of corners) {
+    const cx = px * (S / 2 - 0.3), cz = pz * (S / 2 - 0.3);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, poleH, 6), STONE_DARK);
+    pole.position.set(cx, topY + poleH / 2, cz);
+    pole.castShadow = true;
+    g.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.3), flagMat);
+    flag.position.set(cx + 0.25, topY + poleH - 0.15, cz);
+    g.add(flag);
+  }
+  const deckY = H + 0.36;
+  const parts = [];
+  if (king) {
+    const knight = standing('knight', team, 0.7, 0.5, deckY, 0.4);
+    goldify(knight.obj);
+    g.add(knight.obj);
+    parts.push(knight);
+    const cannon = buildPart('cannon', null, true);
+    cannon.obj.scale.setScalar(0.75);
+    cannon.obj.position.set(-0.4, deckY, -0.5);
+    g.add(cannon.obj);
+  } else {
+    const archer = standing('archer', team, 0.6, 0, deckY, 0.1);
+    g.add(archer.obj);
+    parts.push(archer);
+  }
+  return { group: g, parts };
+}
+function buildBridge(x) {
+  // Planks run across the deck (along x), spaced along z; the deck spans the river plus 0.5 tile each bank.
+  const g = new THREE.Group();
+  const DECK_W = 2.0, DECK_L = 3.0, deckY = 0.22, N = 6, gap = 0.06;
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.85 });
+  const woodB = new THREE.MeshStandardMaterial({ color: 0x7a4c23, roughness: 0.9 });
+  const rail = new THREE.MeshStandardMaterial({ color: 0x5b3a1c, roughness: 0.8 });
+  const plank = (DECK_L - (N - 1) * gap) / N;
+  for (let i = 0; i < N; i++) {
+    const z = -DECK_L / 2 + plank / 2 + i * (plank + gap);
+    boxMesh(g, DECK_W, 0.1, plank, i % 2 ? woodB : wood, 0, deckY, z);
+  }
+  for (const s of [-1, 1]) boxMesh(g, 0.1, 0.32, DECK_L, rail, s * (DECK_W / 2 - 0.08), deckY + 0.21, 0);
+  g.position.set(x, 0, RIVER.mid);
+  return g;
 }
 
 // Decor, towers and cannons.
 const towers = [];
 function makeTower(kind, team, x, z) {
-  const part = buildPart(kind, team, true);
-  const root = new THREE.Group();
-  root.add(part.obj);
-  root.position.set(x, 0, z);
-  scene.add(root);
+  const built = buildTower(kind, team);
+  built.group.position.set(x, 0, z);
+  scene.add(built.group);
   const hp = kind === 'king' ? 240 : 120;
-  const h = HEIGHTS[kind];
   const t = {
-    isTower: true, kind, team, x, z, radius: kind === 'king' ? 1.5 : 1.1,
-    hp, maxHp: hp, root, bar: makeBar(team), down: false, downT: 0, barY: h + 0.55,
+    isTower: true, kind, team, x, z, radius: kind === 'king' ? 1.9 : 1.4,
+    hp, maxHp: hp, root: built.group, parts: built.parts, bar: makeBar(team), down: false, downT: 0,
+    barY: kind === 'king' ? 4.8 : 3.9,
   };
   towers.push(t);
   return t;
@@ -353,13 +440,7 @@ function scatter(key, positions) {
 }
 function placeArena() {
   // Bridges sit on the river, one per lane.
-  for (const x of LANES) {
-    const b = buildPart('bridge', null, true);
-    const g = new THREE.Group();
-    g.add(b.obj);
-    g.position.set(x, 0.12, RIVER.mid);
-    scene.add(g);
-  }
+  for (const x of LANES) scene.add(buildBridge(x));
   // Towers: blue at the bottom of the screen (low z), red at the top.
   for (const x of LANES) { makeTower('princess', 'blue', x, 5); makeTower('princess', 'red', x, 27); }
   makeTower('king', 'blue', 9, 1.8);
@@ -440,9 +521,15 @@ function makeUnit(slot) {
   const cfg = TROOPS[slot.type];
   const vis = buildVisual(slot.type, slot.team, true);
   scene.add(vis.root);
-  const ring = new THREE.Mesh(new THREE.CircleGeometry(0.25 + 0.2 * cfg.h, 24),
-    new THREE.MeshBasicMaterial({ color: TEAM[slot.team].color, transparent: true, opacity: 0.55, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2;
+  // Filled disc plus a brighter outline ring, both team coloured.
+  const r = 0.3 + 0.2 * Math.min(cfg.h, 2.0);
+  const ring = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 28),
+    new THREE.MeshBasicMaterial({ color: TEAM[slot.team].color, transparent: true, opacity: 0.7, depthWrite: false }));
+  const outline = new THREE.Mesh(new THREE.RingGeometry(r * 0.9, r * 1.02, 32),
+    new THREE.MeshBasicMaterial({ color: TEAM[slot.team].color, transparent: true, opacity: 0.95, depthWrite: false }));
+  disc.rotation.x = outline.rotation.x = -Math.PI / 2;
+  ring.add(disc, outline);
   scene.add(ring);
   const sprite = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), SPRITE[slot.type].mats[slot.team]);
   sprite.scale.setScalar(SPRITE[slot.type].size);
@@ -610,6 +697,7 @@ function step(dt, t) {
   for (const c of cannons) c.rotation.y += dt * 0.9;
   for (const s of slots) if (!s.unit) { s.timer -= dt; if (s.timer <= 0) spawnSlot(s); }
   for (const u of [...units]) { updateUnit(u, dt); for (const p of u.parts) p.mixer.update(dt); }
+  for (const tw of towers) for (const p of tw.parts) p.mixer.update(dt);
   for (const u of units) syncUnit(u, t);
   for (const tw of towers) {
     if (tw.down) {

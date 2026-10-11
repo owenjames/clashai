@@ -185,6 +185,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
       dash: null, // { tx, ty, t } while dashing (Mega Knight, Bandit)
       dashCD: 0,
       invulnT: 0, // > 0 means no damage taken (Bandit dash)
+      avoid: null, // { id, side, until }: obstacle steering side kept for a moment
+      stallT: 0, // seconds steering without headway
+      stepX: null, // position at the start of the last walk step
+      escapeT: 0, // seconds left of a wedge escape
+      escapeDir: null,
+      stepY: null,
     };
   }
 
@@ -503,6 +509,124 @@ var CR = (globalThis.CR = globalThis.CR || {});
     return { x: e.bridgeX, y: entY };
   }
 
+  // Obstacle steering. Towers and buildings are immovable circles for ground troops. When the straight
+  // walk to the goal would enter one, the troop turns onto the tangent of that circle at full speed
+  // (it never pushes into the obstacle, so it does not crawl along it). The side is kept for
+  // AVOID_HOLD seconds so the unit does not dither between the two.
+  var AVOID_SKIN = 0.1;
+  var AVOID_HOLD = 1.5;
+  var ESCAPE_TIME = 0.5; // seconds a wedged unit steps straight off the nearest obstacle
+  var STALL_TIME = 0.6; // seconds of no headway before a steering unit flips its side
+
+  // Centre distance a ground troop keeps from a tower or building while steering. Towers use the
+  // corner of their square footprint so troops go round the corners, not through them.
+  function avoidRadius(en) {
+    var r = en.r;
+    if (en.kind === 'tower' && en.size) r = Math.max(r, en.size / Math.SQRT2);
+    return r;
+  }
+
+  // Unit direction to walk in when the straight line to (gx, gy) is blocked, else null.
+  // skip: the entity being walked to (never avoided, so the unit can reach its own target).
+  function steerDir(game, e, gx, gy, skip) {
+    var dx = gx - e.x;
+    var dy = gy - e.y;
+    var L = Math.hypot(dx, dy);
+    if (L < EPS) return null;
+    var ux = dx / L;
+    var uy = dy / L;
+    var best = null;
+    var bestEntry = Infinity;
+    var list = game.entities;
+    for (var i = 0; i < list.length; i++) {
+      var en = list[i];
+      if (en.dead || en.kind === 'troop' || en === skip) continue;
+      var Rc = avoidRadius(en) + e.r + AVOID_SKIN;
+      var rx = en.x - e.x;
+      var ry = en.y - e.y;
+      var ahead = rx * ux + ry * uy; // distance along the walk to the obstacle centre
+      if (ahead <= 0) continue;
+      var perp = Math.abs(rx * uy - ry * ux);
+      if (perp >= Rc - 0.01) continue;
+      var entry = ahead - Math.sqrt(Rc * Rc - perp * perp); // where the walk meets the circle
+      if (entry > L) continue;
+      if (entry < bestEntry) {
+        bestEntry = entry;
+        best = { en: en, rx: rx, ry: ry };
+      }
+    }
+    if (!best) return null;
+
+    var d = Math.hypot(best.rx, best.ry) || EPS;
+    var nx = best.rx / d; // toward the obstacle centre
+    var ny = best.ry / d;
+    var px = -ny; // one tangent of the circle at the unit
+    var py = nx;
+    var along = ux * nx + uy * ny;
+    var gtx = ux - along * nx; // goal direction, tangential part (no inward component)
+    var gty = uy - along * ny;
+    var sideDot = px * gtx + py * gty;
+    var side;
+    if (e.avoid && e.avoid.id === best.en.id && game.time < e.avoid.until) {
+      side = e.avoid.side;
+    } else {
+      // Take the side that leads toward the goal. With no preference, pass on the arena-centre side.
+      if (sideDot > 1e-6) side = 1;
+      else if (sideDot < -1e-6) side = -1;
+      else side = px * (W / 2 - e.x) >= 0 ? 1 : -1;
+      e.avoid = { id: best.en.id, side: side, until: game.time + AVOID_HOLD };
+    }
+    return alongEdge(e, steerVector(side, px, py, gtx, gty));
+  }
+
+  // Drops the part of v that points into an arena edge the unit is touching, so a tangent along a wall
+  // slides along it instead of pinning the unit there.
+  function alongEdge(e, v) {
+    var vx = v.x;
+    var vy = v.y;
+    if ((e.x < e.r + 0.6 && vx < 0) || (e.x > W - e.r - 0.6 && vx > 0)) vx = 0;
+    if ((e.y < e.r + 0.6 && vy < 0) || (e.y > H - e.r - 0.6 && vy > 0)) vy = 0;
+    var vl = Math.hypot(vx, vy);
+    if (vl < EPS) return v;
+    return { x: vx / vl, y: vy / vl };
+  }
+
+  function steerVector(side, px, py, gtx, gty) {
+    var vx = side * px + gtx;
+    var vy = side * py + gty;
+    var vl = Math.hypot(vx, vy) || 1;
+    return { x: vx / vl, y: vy / vl };
+  }
+
+  // Unit direction away from every tower or building within reach of e (not skip), weighted by closeness.
+  // Used to climb out of a V between two obstacles, where the nearest one alone points back in.
+  function awayFromObstacles(game, e, skip) {
+    var rx = 0;
+    var ry = 0;
+    for (var i = 0; i < game.entities.length; i++) {
+      var en = game.entities[i];
+      if (en.dead || en.kind === 'troop' || en === skip) continue;
+      var dx = e.x - en.x;
+      var dy = e.y - en.y;
+      var d = Math.hypot(dx, dy);
+      if (d < EPS || d > avoidRadius(en) + e.r + 2) continue;
+      rx += dx / (d * d);
+      ry += dy / (d * d);
+    }
+    var l = Math.hypot(rx, ry);
+    if (l < EPS) return null;
+    return { x: rx / l, y: ry / l };
+  }
+
+  // Walks e along a unit direction for one step. Returns the distance moved.
+  function stepDir(e, dir, dt, speed) {
+    var step = speed * dt;
+    e.x += dir.x * step;
+    e.y += dir.y * step;
+    e.facing = Math.atan2(dir.y, dir.x);
+    return step;
+  }
+
   // ---- attacks ----------------------------------------------------------
 
   // Closest valid enemy of e to point `from` (edge distance within limit), skipping ids in skip.
@@ -802,7 +926,30 @@ var CR = (globalThis.CR = globalThis.CR || {});
     if (gx === null) return;
 
     var wp = nextWaypoint(e, gx, gy);
-    var moved = stepToward(e, wp.x, wp.y, dt, currentSpeed(e));
+    var goalEnt = e.target && !inRange ? e.target : defaultGoal(game, e);
+    var dir = e.air ? null : steerDir(game, e, wp.x, wp.y, goalEnt);
+    // Headway is the real displacement since the last step (collisions can undo a commanded step).
+    if (dir && e.stepX !== null) {
+      if (Math.hypot(e.x - e.stepX, e.y - e.stepY) < 0.5 * currentSpeed(e) * dt) e.stallT += dt;
+      else e.stallT = 0;
+      if (e.stallT > STALL_TIME && e.avoid) {
+        // Wedged between obstacles: try the other side, and step straight off the nearest one for a moment.
+        e.avoid.side = -e.avoid.side;
+        e.avoid.until = game.time + AVOID_HOLD;
+        e.stallT = 0;
+        e.escapeT = ESCAPE_TIME;
+        e.escapeDir = awayFromObstacles(game, e, goalEnt);
+      }
+    } else {
+      e.stallT = 0;
+    }
+    e.stepX = e.x;
+    e.stepY = e.y;
+    if (e.escapeT > 0 && e.escapeDir) {
+      e.escapeT -= dt;
+      dir = e.escapeDir;
+    }
+    var moved = dir ? stepDir(e, dir, dt, currentSpeed(e)) : stepToward(e, wp.x, wp.y, dt, currentSpeed(e));
     if (moved > 0) {
       e.chargeDist += moved;
       if (def.charge && !e.charging && e.chargeDist >= def.charge.dist) e.charging = true;

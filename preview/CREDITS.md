@@ -15,15 +15,12 @@ Licence: CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/).
 | assets/polypizza/dragon.glb | Baby dragon (flying) | https://poly.pizza/m/VBvzjFIYws | Dragon | Quaternius | CC0 1.0 | 269 KB |
 | assets/polypizza/pekka.glb | Mini P.E.K.K.A stand-in (robot) | https://poly.pizza/m/1gNo5ezvmr | Robot Enemy | Quaternius | CC0 1.0 | 564 KB |
 | assets/polypizza/hog.glb | Hog (mount for the hog rider) | https://poly.pizza/m/u35l6uP5vj | Pig | Quaternius | CC0 1.0 | 301 KB |
-| assets/polypizza/princess_tower.glb | Princess tower | https://poly.pizza/m/Rz4U5dZJz8 | Stone Tower | Quaternius | CC0 1.0 | 205 KB |
-| assets/polypizza/king_tower.glb | King tower | https://poly.pizza/m/opTOmcN3o9 | Castle | Quaternius | CC0 1.0 | 477 KB |
 | assets/polypizza/cannon.glb | Cannon | https://poly.pizza/m/J15vlPVvKK | Cannon | Quaternius | CC0 1.0 | 98 KB |
 | assets/polypizza/tree.glb | Arena-edge tree | https://poly.pizza/m/qZtx0AHhcy | Tree | Quaternius | CC0 1.0 | 2.5 MB |
 | assets/polypizza/pine.glb | Arena-edge pine | https://poly.pizza/m/79gmlLnweB | Pine | Quaternius | CC0 1.0 | 2.2 MB |
 | assets/polypizza/rock.glb | River-bank rock | https://poly.pizza/m/54jZKTAt5p | Rock Large | Quaternius | CC0 1.0 | 19 KB |
-| assets/polypizza/bridge.glb | Bridge (one per lane) | https://poly.pizza/m/Iw8iXLqVs5 | Bridge | Quaternius | CC0 1.0 | 27 KB |
 
-Total: 16 files, about 8.4 MB.
+Total: 13 files, about 7.7 MB. Towers, bridges and the arena border are built in code (no download).
 
 ## Substitutions
 
@@ -31,6 +28,5 @@ Total: 16 files, about 8.4 MB.
 - The "Mini P.E.K.K.A" slot uses a generic Quaternius robot, not a P.E.K.K.A.
 - The "Hog Rider" slot is a pig with a knight placed on its back. It is not a hog model with a rider.
 - The "Archer" slot uses a character holding a gun pose (Characters Matt), since no bow-holding character was found in CC0 results.
-- The "King tower" is a long castle wall piece from the Quaternius "Castle" model, not a dedicated king tower.
 
 No other assets are used. Code in `index.html` is original to this project and uses three.js 0.160.0 from cdn.jsdelivr.net (MIT licence).

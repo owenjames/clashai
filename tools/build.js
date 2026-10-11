@@ -16,6 +16,8 @@ const IOS_WEB = path.join(ROOT, 'ios', 'ClashAI', 'Web');
 const SCRIPTS = [
   'js/cards.js',
   'js/engine.js',
+  'js/botconfig.js',
+  'js/bot.js',
   'js/ai.js',
   'js/render.js',
   'js/audio.js',

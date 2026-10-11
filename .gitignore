@@ -5,3 +5,5 @@ ios/build/
 ios/DerivedData/
 *.xcuserstate
 xcuserdata/
+phone/.venv/
+phone/captures/
