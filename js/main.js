@@ -123,6 +123,15 @@
     };
   }
 
+  // Pixi renderer by default when WebGL works. ?r=canvas forces Canvas 2D, ?r=pixi forces Pixi.
+  function makeRenderer() {
+    var m = /[?&]r=(canvas|pixi)\b/.exec(location.search);
+    var want = m ? m[1] : 'auto';
+    var pixi = typeof PIXI !== 'undefined' && CR.PixiRenderer && CR.PixiRenderer.supported();
+    if (want !== 'canvas' && pixi) return new CR.PixiRenderer(canvas);
+    return new CR.Renderer(canvas);
+  }
+
   function layout() {
     if (!renderer) return;
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -133,7 +142,7 @@
   // ---- battle ----
 
   function startBattle() {
-    if (!renderer) renderer = new CR.Renderer(canvas);
+    if (!renderer) renderer = makeRenderer();
     var aiDeck = CR.AI_DECKS[Math.floor(Math.random() * CR.AI_DECKS.length)].slice();
     game = new CR.Game({
       decks: [profile.deck.slice(), aiDeck],

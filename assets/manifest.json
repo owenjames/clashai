@@ -1,0 +1,460 @@
+{
+  "format": 1,
+  "units": {},
+  "buildings": {},
+  "towers": {},
+  "projectiles": {},
+  "effects": {
+    "towerDown": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/smoke/explosion/explosion00.png",
+            "assets/vfx/smoke/explosion/explosion01.png",
+            "assets/vfx/smoke/explosion/explosion02.png",
+            "assets/vfx/smoke/explosion/explosion03.png",
+            "assets/vfx/smoke/explosion/explosion04.png",
+            "assets/vfx/smoke/explosion/explosion05.png",
+            "assets/vfx/smoke/explosion/explosion06.png",
+            "assets/vfx/smoke/explosion/explosion07.png",
+            "assets/vfx/smoke/explosion/explosion08.png"
+          ]
+        },
+        "fps": 14,
+        "scale": 1.2
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/smoke/black_smoke/blackSmoke00.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke01.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke02.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke03.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke04.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke05.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke06.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke07.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke08.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke09.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke10.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke11.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke12.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke13.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke14.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke15.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke16.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke17.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke18.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke19.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke20.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke21.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke22.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke23.png",
+            "assets/vfx/smoke/black_smoke/blackSmoke24.png"
+          ]
+        },
+        "fps": 10,
+        "scale": 1.6,
+        "alpha": 0.8
+      }
+    ],
+    "deploy": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/smoke/white_puff/whitePuff00.png",
+            "assets/vfx/smoke/white_puff/whitePuff01.png",
+            "assets/vfx/smoke/white_puff/whitePuff02.png",
+            "assets/vfx/smoke/white_puff/whitePuff03.png",
+            "assets/vfx/smoke/white_puff/whitePuff04.png",
+            "assets/vfx/smoke/white_puff/whitePuff05.png",
+            "assets/vfx/smoke/white_puff/whitePuff06.png",
+            "assets/vfx/smoke/white_puff/whitePuff07.png",
+            "assets/vfx/smoke/white_puff/whitePuff08.png",
+            "assets/vfx/smoke/white_puff/whitePuff09.png",
+            "assets/vfx/smoke/white_puff/whitePuff10.png",
+            "assets/vfx/smoke/white_puff/whitePuff11.png",
+            "assets/vfx/smoke/white_puff/whitePuff12.png",
+            "assets/vfx/smoke/white_puff/whitePuff13.png",
+            "assets/vfx/smoke/white_puff/whitePuff14.png",
+            "assets/vfx/smoke/white_puff/whitePuff15.png",
+            "assets/vfx/smoke/white_puff/whitePuff16.png",
+            "assets/vfx/smoke/white_puff/whitePuff17.png",
+            "assets/vfx/smoke/white_puff/whitePuff18.png",
+            "assets/vfx/smoke/white_puff/whitePuff19.png",
+            "assets/vfx/smoke/white_puff/whitePuff20.png",
+            "assets/vfx/smoke/white_puff/whitePuff21.png",
+            "assets/vfx/smoke/white_puff/whitePuff22.png",
+            "assets/vfx/smoke/white_puff/whitePuff23.png",
+            "assets/vfx/smoke/white_puff/whitePuff24.png"
+          ]
+        },
+        "fps": 18,
+        "scale": 0.8,
+        "alpha": 0.7,
+        "tint": "#efe3c2"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/dirt_01.png",
+            "assets/vfx/particles/dirt_02.png",
+            "assets/vfx/particles/dirt_03.png"
+          ]
+        },
+        "fps": 10,
+        "scale": 0.8,
+        "alpha": 0.8
+      }
+    ],
+    "death": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/smoke/white_puff/whitePuff00.png",
+            "assets/vfx/smoke/white_puff/whitePuff01.png",
+            "assets/vfx/smoke/white_puff/whitePuff02.png",
+            "assets/vfx/smoke/white_puff/whitePuff03.png",
+            "assets/vfx/smoke/white_puff/whitePuff04.png",
+            "assets/vfx/smoke/white_puff/whitePuff05.png",
+            "assets/vfx/smoke/white_puff/whitePuff06.png",
+            "assets/vfx/smoke/white_puff/whitePuff07.png",
+            "assets/vfx/smoke/white_puff/whitePuff08.png",
+            "assets/vfx/smoke/white_puff/whitePuff09.png",
+            "assets/vfx/smoke/white_puff/whitePuff10.png",
+            "assets/vfx/smoke/white_puff/whitePuff11.png",
+            "assets/vfx/smoke/white_puff/whitePuff12.png",
+            "assets/vfx/smoke/white_puff/whitePuff13.png",
+            "assets/vfx/smoke/white_puff/whitePuff14.png",
+            "assets/vfx/smoke/white_puff/whitePuff15.png",
+            "assets/vfx/smoke/white_puff/whitePuff16.png",
+            "assets/vfx/smoke/white_puff/whitePuff17.png",
+            "assets/vfx/smoke/white_puff/whitePuff18.png",
+            "assets/vfx/smoke/white_puff/whitePuff19.png",
+            "assets/vfx/smoke/white_puff/whitePuff20.png",
+            "assets/vfx/smoke/white_puff/whitePuff21.png",
+            "assets/vfx/smoke/white_puff/whitePuff22.png",
+            "assets/vfx/smoke/white_puff/whitePuff23.png",
+            "assets/vfx/smoke/white_puff/whitePuff24.png"
+          ]
+        },
+        "fps": 18,
+        "scale": 0.7,
+        "alpha": 0.8
+      }
+    ],
+    "hit": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/spark_01.png",
+            "assets/vfx/particles/spark_02.png",
+            "assets/vfx/particles/spark_03.png",
+            "assets/vfx/particles/spark_04.png",
+            "assets/vfx/particles/spark_05.png",
+            "assets/vfx/particles/spark_06.png",
+            "assets/vfx/particles/spark_07.png"
+          ]
+        },
+        "fps": 24,
+        "scale": 0.9,
+        "blend": "add",
+        "tint": "#fff3b0"
+      }
+    ],
+    "zap": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/light_01.png",
+            "assets/vfx/particles/light_02.png",
+            "assets/vfx/particles/light_03.png"
+          ]
+        },
+        "fps": 20,
+        "scale": 0.8,
+        "blend": "add",
+        "tint": "#7fdcff"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/trace_01.png",
+            "assets/vfx/particles/trace_02.png",
+            "assets/vfx/particles/trace_03.png",
+            "assets/vfx/particles/trace_04.png",
+            "assets/vfx/particles/trace_05.png",
+            "assets/vfx/particles/trace_06.png",
+            "assets/vfx/particles/trace_07.png"
+          ]
+        },
+        "fps": 24,
+        "scale": 0.9,
+        "blend": "add",
+        "tint": "#7fdcff"
+      }
+    ],
+    "lightning": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/light_01.png",
+            "assets/vfx/particles/light_02.png",
+            "assets/vfx/particles/light_03.png"
+          ]
+        },
+        "fps": 16,
+        "scale": 0.8,
+        "blend": "add",
+        "tint": "#ffe65a"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/flare_01.png"
+          ]
+        },
+        "fps": 1,
+        "scale": 0.8,
+        "blend": "add"
+      }
+    ],
+    "chain": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/trace_01.png",
+            "assets/vfx/particles/trace_02.png",
+            "assets/vfx/particles/trace_03.png",
+            "assets/vfx/particles/trace_04.png",
+            "assets/vfx/particles/trace_05.png",
+            "assets/vfx/particles/trace_06.png",
+            "assets/vfx/particles/trace_07.png"
+          ]
+        },
+        "fps": 24,
+        "scale": 0.9,
+        "blend": "add",
+        "tint": "#7fdcff"
+      }
+    ],
+    "freeze": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/magic_01.png",
+            "assets/vfx/particles/magic_02.png",
+            "assets/vfx/particles/magic_03.png",
+            "assets/vfx/particles/magic_04.png",
+            "assets/vfx/particles/magic_05.png"
+          ]
+        },
+        "fps": 14,
+        "scale": 0.7,
+        "blend": "add",
+        "tint": "#a6e4ff"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/star_01.png",
+            "assets/vfx/particles/star_02.png",
+            "assets/vfx/particles/star_03.png",
+            "assets/vfx/particles/star_04.png",
+            "assets/vfx/particles/star_05.png",
+            "assets/vfx/particles/star_06.png",
+            "assets/vfx/particles/star_07.png",
+            "assets/vfx/particles/star_08.png",
+            "assets/vfx/particles/star_09.png"
+          ]
+        },
+        "fps": 14,
+        "scale": 0.5,
+        "blend": "add",
+        "tint": "#a6e4ff"
+      }
+    ],
+    "poison": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/smoke_01.png",
+            "assets/vfx/particles/smoke_02.png",
+            "assets/vfx/particles/smoke_03.png",
+            "assets/vfx/particles/smoke_04.png",
+            "assets/vfx/particles/smoke_05.png",
+            "assets/vfx/particles/smoke_06.png",
+            "assets/vfx/particles/smoke_07.png",
+            "assets/vfx/particles/smoke_08.png",
+            "assets/vfx/particles/smoke_09.png",
+            "assets/vfx/particles/smoke_10.png"
+          ]
+        },
+        "fps": 8,
+        "scale": 1,
+        "tint": "#78dc46",
+        "alpha": 0.6
+      }
+    ],
+    "rage": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/circle_01.png",
+            "assets/vfx/particles/circle_02.png",
+            "assets/vfx/particles/circle_03.png",
+            "assets/vfx/particles/circle_04.png",
+            "assets/vfx/particles/circle_05.png"
+          ]
+        },
+        "fps": 10,
+        "scale": 1,
+        "blend": "add",
+        "tint": "#aa46ff"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/magic_01.png",
+            "assets/vfx/particles/magic_02.png",
+            "assets/vfx/particles/magic_03.png",
+            "assets/vfx/particles/magic_04.png",
+            "assets/vfx/particles/magic_05.png"
+          ]
+        },
+        "fps": 12,
+        "scale": 0.8,
+        "blend": "add",
+        "tint": "#c58cff"
+      }
+    ],
+    "tornado": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/twirl_01.png",
+            "assets/vfx/particles/twirl_02.png",
+            "assets/vfx/particles/twirl_03.png"
+          ]
+        },
+        "fps": 10,
+        "scale": 1,
+        "spin": 120,
+        "alpha": 0.85
+      }
+    ],
+    "fireball": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/flame_01.png",
+            "assets/vfx/particles/flame_02.png",
+            "assets/vfx/particles/flame_03.png",
+            "assets/vfx/particles/flame_04.png",
+            "assets/vfx/particles/flame_05.png",
+            "assets/vfx/particles/flame_06.png"
+          ]
+        },
+        "fps": 16,
+        "scale": 0.6,
+        "blend": "add"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/fire_01.png",
+            "assets/vfx/particles/fire_02.png"
+          ]
+        },
+        "fps": 8,
+        "scale": 0.5
+      }
+    ],
+    "rocket": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/flame_01.png",
+            "assets/vfx/particles/flame_02.png",
+            "assets/vfx/particles/flame_03.png",
+            "assets/vfx/particles/flame_04.png",
+            "assets/vfx/particles/flame_05.png",
+            "assets/vfx/particles/flame_06.png"
+          ]
+        },
+        "fps": 16,
+        "scale": 0.7,
+        "blend": "add"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/fire_01.png",
+            "assets/vfx/particles/fire_02.png"
+          ]
+        },
+        "fps": 8,
+        "scale": 0.5
+      }
+    ],
+    "splash": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/scorch_01.png",
+            "assets/vfx/particles/scorch_02.png",
+            "assets/vfx/particles/scorch_03.png"
+          ]
+        },
+        "fps": 1,
+        "scale": 1,
+        "alpha": 0.6,
+        "tint": "#333333"
+      },
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/circle_02.png"
+          ]
+        },
+        "fps": 1,
+        "scale": 1,
+        "blend": "add",
+        "tint": "#ffa040",
+        "alpha": 0.6
+      }
+    ],
+    "spawn": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/muzzle_01.png",
+            "assets/vfx/particles/muzzle_02.png",
+            "assets/vfx/particles/muzzle_03.png",
+            "assets/vfx/particles/muzzle_04.png",
+            "assets/vfx/particles/muzzle_05.png"
+          ]
+        },
+        "fps": 18,
+        "scale": 0.6,
+        "blend": "add"
+      }
+    ],
+    "dash": [
+      {
+        "frames": {
+          "idle": [
+            "assets/vfx/particles/slash_01.png",
+            "assets/vfx/particles/slash_02.png",
+            "assets/vfx/particles/slash_03.png",
+            "assets/vfx/particles/slash_04.png"
+          ]
+        },
+        "fps": 18,
+        "scale": 0.9,
+        "alpha": 0.8
+      }
+    ]
+  },
+  "ui": {}
+}
