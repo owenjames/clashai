@@ -21,9 +21,10 @@ var CR = (globalThis.CR = globalThis.CR || {});
       reactionMax: 0.8,     // seconds before answering a new threat, upper bound
       actionCooldown: 1.0,  // seconds between two plays (jittered +/-15 percent)
       placementJitter: 0.4, // random offset in tiles added to every drop
+      misplaceChance: 0,    // chance a drop lands at a random spot a few tiles off (sloppy play)
     },
     elixir: {
-      pushThreshold: 8,     // elixir needed before starting a push
+      pushThreshold: 8,     // elixir needed before a simple push or idle cycle (planned pushes check their own cost)
       maxHold: 9.5,         // at this elixir the bot must play (forced play, stops leaks)
       leakTolerance: 0,     // seconds at maxHold before the forced play fires
       defenseReserve: 2,    // elixir kept back for defence when spending on filler and support
@@ -33,12 +34,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
     offense: {
       aggression: 0.6,          // 0 never pushes on its own, 1 pushes as soon as elixir allows
       laneMode: 'weakest',      // weakest | sameLast | opposite | random (lane for the next push)
-      tankPlacement: 'back',    // back: near own princess tower, bridge: at the river
-      supportDelay: 1.5,        // seconds after the tank before support is played
+      tankPlacement: 'back',    // simple offence only: back near own princess tower, or bridge
+      supportDelay: 1.5,        // simple offence only: seconds after the tank before support
       supportGap: 2,            // tiles behind the tank where support lands
-      splitPushChance: 0.1,     // chance to open a second push in the other lane once the first has support
+      splitPushChance: 0.1,     // simple offence only: chance to open a second push in the other lane
       pocketUsage: 'always',    // always | tankOnly | never: place in the pocket once the lane princess is down
-      baitChance: 0,            // chance to send a cheap bait card ahead of each push
+      baitChance: 0,            // simple offence only: chance to send a cheap bait card ahead of each push
       counterPush: true,        // push right after an enemy threat is cleared without tower loss
       counterWindow: 8,         // seconds the counter-push window stays open
       counterElixir: 5,         // elixir needed for a counter push
@@ -61,6 +62,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
       costBias: 0.1,           // score penalty per elixir spent on a counter
       overkillPenalty: 0.25,   // score penalty per elixir above what the threat needs
       overcommit: 1,           // max elixir for one answer = threat value * overcommit + 2
+      heavyAllowance: 0,       // extra elixir an answer may cost against a tank or win condition
       pickNoise: 0,            // chance to pick the second-best answer instead of the best
       kiteBuildings: true,     // kite tanks with buildings as well as troops
       kiteMaxCost: 3,          // most elixir a kite drop may cost
@@ -77,6 +79,24 @@ var CR = (globalThis.CR = globalThis.CR || {});
       playCheapestWhenIdle: true, // play the cheapest troop when nothing else is planned
       cardsPer10s: 4,             // target cards per 10 seconds for idle cycling
       holdWinConUntil: 6,         // do not play a win condition below this elixir
+    },
+    plan: {
+      enabled: true,           // push planner (tank, support timed by speed, spells, punish, counter). Off: the simple offence
+      maxCards: 3,             // most cards in one push, 2 to 4 (tank and support are always included)
+      tankDropSpeed: 1.25,     // tanks at or below this speed drop on the bridge, faster ones at the back
+      supportGapTime: 0.5,     // seconds the support should land behind the tank at the princess
+      doubleSlack: 2,          // elixir a push may start short of in double or triple elixir (regen covers it)
+      advantageGate: -6,       // regular pushes wait while the elixir advantage is below this
+      elixirNoise: 0,          // error on the opponent elixir estimate, plus or minus (noise is redrawn every 2 s)
+      punishBelow: 3,          // opponent estimate below this starts a punish push in the opposite lane
+      counterValue: 3,         // elixir value of surviving troops heading for the bridge that triggers a counter support
+      spellRange: 6,           // tiles around the push tank in which spells look for enemy clusters
+      towerSpellRange: 9,      // tiles from the enemy princess at which a push casts its tower spell
+    },
+    endgame: {
+      window: 60,              // seconds before the end of regulation when endgame pressure starts (all of overtime too)
+      aggression: 0.4,         // added to the push roll when behind or tied in the endgame
+      spellBelow: 3,           // opponent estimate below this makes a tower spell worth casting even without a finish
     },
     deck: {
       cards: null,             // 8 card ids; null uses CR.DEFAULT_DECK
@@ -97,27 +117,28 @@ var CR = (globalThis.CR = globalThis.CR || {});
     S('general.trace', 'General', 'Record decisions', 'bool', 0, 1, 1, false, 'Keep a log of each play and why'),
 
     S('timing.thinkInterval', 'Timing', 'Think interval', 'number', 0.1, 0.5, 0.05, 0.25, 'Seconds between decisions'),
-    S('timing.reactionMin', 'Timing', 'Reaction min', 'number', 0.1, 2.0, 0.05, 0.4, 'Shortest delay before answering a threat'),
-    S('timing.reactionMax', 'Timing', 'Reaction max', 'number', 0.1, 2.5, 0.05, 0.8, 'Longest delay before answering a threat'),
+    S('timing.reactionMin', 'Timing', 'Reaction min', 'number', 0.1, 3.0, 0.05, 0.4, 'Shortest delay before answering a threat'),
+    S('timing.reactionMax', 'Timing', 'Reaction max', 'number', 0.1, 3.5, 0.05, 0.8, 'Longest delay before answering a threat'),
     S('timing.actionCooldown', 'Timing', 'Action cooldown', 'number', 0.2, 3.0, 0.05, 1.0, 'Seconds between plays'),
     S('timing.placementJitter', 'Timing', 'Placement jitter', 'number', 0, 1.5, 0.05, 0.4, 'Random tile offset on each drop'),
+    S('timing.misplaceChance', 'Timing', 'Misplace chance', 'number', 0, 0.5, 0.01, 0, 'Chance a drop lands a few tiles off the planned spot'),
 
-    S('elixir.pushThreshold', 'Elixir', 'Push threshold', 'number', 4, 10, 0.5, 8, 'Elixir needed to start a push'),
+    S('elixir.pushThreshold', 'Elixir', 'Push threshold', 'number', 4, 10, 0.5, 8, 'Elixir needed to start a simple push or idle cycle (not planned pushes)'),
     S('elixir.maxHold', 'Elixir', 'Max hold', 'number', 8, 10, 0.1, 9.5, 'Elixir at which a forced play fires'),
     S('elixir.leakTolerance', 'Elixir', 'Leak tolerance', 'number', 0, 3, 0.25, 0, 'Seconds at max hold before the forced play'),
     S('elixir.defenseReserve', 'Elixir', 'Defence reserve', 'number', 0, 6, 0.5, 2, 'Elixir kept back for defence on filler and support'),
     S('elixir.doubleMult', 'Elixir', '2x aggression mult', 'number', 0.25, 2, 0.05, 1, 'Aggression multiplier during double elixir'),
     S('elixir.tripleMult', 'Elixir', '3x aggression mult', 'number', 0.25, 2, 0.05, 1, 'Aggression multiplier during triple elixir'),
 
-    S('offense.aggression', 'Offense', 'Aggression', 'number', 0, 1, 0.05, 0.6, 'How soon a push starts once elixir allows'),
+    S('offense.aggression', 'Offense', 'Aggression', 'number', 0, 1, 0.05, 0.6, 'Chance per decision to start a push, once elixir allows'),
     S('offense.laneMode', 'Offense', 'Lane choice', 'enum', null, null, null, 'weakest', 'Which lane the next push takes', ['weakest', 'sameLast', 'opposite', 'random']),
-    S('offense.tankPlacement', 'Offense', 'Tank placement', 'enum', null, null, null, 'back', 'Tank drop spot: back or at the bridge', ['back', 'bridge']),
-    S('offense.supportDelay', 'Offense', 'Support delay', 'number', 0, 5, 0.25, 1.5, 'Seconds after the tank before support'),
+    S('offense.tankPlacement', 'Offense', 'Tank placement', 'enum', null, null, null, 'back', 'Tank drop spot: back or bridge (simple offence; planned pushes drop by speed)', ['back', 'bridge']),
+    S('offense.supportDelay', 'Offense', 'Support delay', 'number', 0, 5, 0.25, 1.5, 'Seconds after the tank before support (simple offence; planned pushes time it by speed)'),
     S('offense.supportGap', 'Offense', 'Support gap', 'number', 0, 5, 0.25, 2, 'Tiles behind the tank for support'),
-    S('offense.splitPushChance', 'Offense', 'Split push chance', 'number', 0, 1, 0.05, 0.1, 'Chance to open a second lane push'),
+    S('offense.splitPushChance', 'Offense', 'Split push chance', 'number', 0, 1, 0.05, 0.1, 'Chance to open a second lane push (simple offence only)'),
     S('offense.pocketUsage', 'Offense', 'Pocket usage', 'enum', null, null, null, 'always', 'Use the pocket once a princess is down', ['always', 'tankOnly', 'never']),
-    S('offense.baitChance', 'Offense', 'Bait chance', 'number', 0, 1, 0.05, 0, 'Chance to bait with a cheap card before a push'),
-    S('offense.counterPush', 'Offense', 'Counter push', 'bool', 0, 1, 1, true, 'Push right after a threat is cleared'),
+    S('offense.baitChance', 'Offense', 'Bait chance', 'number', 0, 1, 0.05, 0, 'Chance to bait with a cheap card before a push (simple offence only)'),
+    S('offense.counterPush', 'Offense', 'Counter push', 'bool', 0, 1, 1, true, 'Support or push right after a threat is cleared'),
     S('offense.counterWindow', 'Offense', 'Counter window', 'int', 0, 20, 1, 8, 'Seconds the counter-push window stays open'),
     S('offense.counterElixir', 'Offense', 'Counter elixir', 'number', 3, 10, 0.5, 5, 'Elixir needed for a counter push'),
     S('offense.pushTimeout', 'Offense', 'Push timeout', 'number', 20, 60, 1, 45, 'Seconds before a push is abandoned'),
@@ -138,6 +159,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     S('defense.costBias', 'Defence', 'Cost bias', 'number', 0, 0.5, 0.01, 0.1, 'Score penalty per elixir spent'),
     S('defense.overkillPenalty', 'Defence', 'Overkill penalty', 'number', 0, 1, 0.05, 0.25, 'Penalty for cards costing above the threat'),
     S('defense.overcommit', 'Defence', 'Overcommit', 'number', 0, 3, 0.1, 1, 'Max elixir per answer = threat x this + 2'),
+    S('defense.heavyAllowance', 'Defence', 'Heavy allowance', 'number', 0, 6, 0.5, 0, 'Extra elixir an answer may cost against a tank or win condition'),
     S('defense.pickNoise', 'Defence', 'Pick noise', 'number', 0, 0.5, 0.01, 0, 'Chance to pick the second-best answer'),
     S('defense.kiteBuildings', 'Defence', 'Kite with buildings', 'bool', 0, 1, 1, true, 'Allow buildings as kite drops'),
     S('defense.kiteMaxCost', 'Defence', 'Kite max cost', 'int', 1, 6, 1, 3, 'Most elixir a kite drop may cost'),
@@ -152,6 +174,21 @@ var CR = (globalThis.CR = globalThis.CR || {});
     S('cycle.playCheapestWhenIdle', 'Cycle', 'Cycle when idle', 'bool', 0, 1, 1, true, 'Play the cheapest troop when nothing else is planned'),
     S('cycle.cardsPer10s', 'Cycle', 'Cards per 10 s', 'number', 2, 8, 0.5, 4, 'Target cards per 10 s for idle cycling'),
     S('cycle.holdWinConUntil', 'Cycle', 'Hold win con until', 'number', 0, 10, 0.5, 6, 'No win condition below this elixir'),
+
+    S('plan.enabled', 'Plan', 'Push planner', 'bool', 0, 1, 1, true, 'Plan pushes (tank, timed support, spells, punish, counter). Off: simple offence'),
+    S('plan.maxCards', 'Plan', 'Cards per push', 'int', 2, 4, 1, 3, 'Most cards in one push, tank and support included'),
+    S('plan.tankDropSpeed', 'Plan', 'Tank bridge speed', 'number', 0.5, 2.5, 0.05, 1.25, 'Tanks at or below this speed drop on the bridge, faster ones at the back'),
+    S('plan.supportGapTime', 'Plan', 'Support gap time', 'number', 0, 2, 0.05, 0.5, 'Seconds the support should land behind the tank'),
+    S('plan.doubleSlack', 'Plan', 'Double elixir slack', 'number', 0, 4, 0.25, 2, 'Elixir a push may start short of in double or triple elixir'),
+    S('plan.advantageGate', 'Plan', 'Advantage gate', 'number', -6, 6, 0.5, -6, 'Regular pushes wait while the elixir advantage is below this'),
+    S('plan.elixirNoise', 'Plan', 'Elixir estimate noise', 'number', 0, 3, 0.1, 0, 'Error on the opponent elixir estimate, plus or minus'),
+    S('plan.punishBelow', 'Plan', 'Punish below', 'number', 1, 6, 0.25, 3, 'Opponent elixir estimate below this starts a punish push'),
+    S('plan.counterValue', 'Plan', 'Counter value', 'number', 1, 8, 0.25, 3, 'Surviving troops (elixir value) that trigger a counter support'),
+    S('plan.spellRange', 'Plan', 'Spell range', 'number', 2, 10, 0.5, 6, 'Tiles around the push tank where spells look for clusters'),
+    S('plan.towerSpellRange', 'Plan', 'Tower spell range', 'number', 0, 16, 0.5, 9, 'Tiles from the enemy princess at which a push casts a tower spell'),
+    S('endgame.window', 'Endgame', 'Endgame window', 'number', 0, 120, 5, 60, 'Seconds before regulation ends that endgame pressure starts (all of overtime too)'),
+    S('endgame.aggression', 'Endgame', 'Endgame aggression', 'number', 0, 1, 0.05, 0.4, 'Added to the push roll when behind or tied in the endgame'),
+    S('endgame.spellBelow', 'Endgame', 'Spell below', 'number', 0, 6, 0.25, 3, 'Opponent elixir estimate below this makes a tower spell worth casting'),
 
     S('deck.cards', 'Deck', 'Deck', 'deck', null, null, null, null, '8 card ids, empty uses the default deck'),
   ];

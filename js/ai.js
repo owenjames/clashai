@@ -17,36 +17,47 @@ var CR = (globalThis.CR = globalThis.CR || {});
     if (!CR.Bot) require('./bot.js');
   }
 
-  // Difficulty overlays, as dotted bot parameters. Each tier changes what decides games: how fast it
-  // answers, how much elixir it lets go to waste, how sharp its counters are, and how it spends spells.
-  //   easy:   slow to answer, sloppy drops, second-best counters often, leaks elixir, no counter-pushes.
-  //   normal: a human-like delay, some leak, occasional second-best counter.
-  //   hard:   quick, precise answers; never leaks; counter-pushes when a threat is cleared.
+  // Difficulty overlays, as dotted bot parameters. Each tier changes what decides games.
+  //   easy:   no planner (the simple offence: one lead, one support, idle cycling). Slow to answer, sloppy
+  //           drops, second-best counters often, leaks elixir, no counter-pushes, spells only when clearly worth it.
+  //   normal: the planner, with its opponent elixir estimate off by up to 2. A human-like delay. Answers are cheap
+  //           (overcommit low), but tanks and win conditions still get a bigger answer (heavyAllowance). Some leak,
+  //           occasional second-best counter, spell aim that leads targets only partly.
+  //   hard:   the planner with an exact opponent elixir estimate; quick, precise answers, and it answers big
+  //           threats with more elixir; spell aim leads moving targets fully; never leaks; counter-pushes when a
+  //           threat is cleared.
   var DIFFICULTY = {
     easy: {
+      'plan.enabled': false,
       'timing.reactionMin': 2, 'timing.reactionMax': 3, 'timing.placementJitter': 1.2,
-      'timing.actionCooldown': 2.4,
+      'timing.misplaceChance': 0.12, 'timing.actionCooldown': 2.4,
       'elixir.pushThreshold': 8, 'elixir.maxHold': 10, 'elixir.leakTolerance': 3,
       'defense.pickNoise': 0.5, 'defense.overcommit': 0.5, 'defense.threatThreshold': 1.5,
-      'spells.minValueRatio': 1.8,
+      'spells.minValueRatio': 1.8, 'spells.predictLead': 0,
       'offense.aggression': 0.15, 'offense.counterPush': false, 'offense.splitPushChance': 0,
       'offense.tankPlacement': 'bridge', 'offense.laneMode': 'weakest',
       'cycle.playCheapestWhenIdle': false,
     },
     normal: {
+      'plan.enabled': true, 'plan.elixirNoise': 2,
       'timing.reactionMin': 1.2, 'timing.reactionMax': 2, 'timing.placementJitter': 0.9,
-      'timing.actionCooldown': 1.2,
+      'timing.misplaceChance': 0.03, 'timing.actionCooldown': 1.2,
       'elixir.pushThreshold': 8, 'elixir.maxHold': 10, 'elixir.leakTolerance': 2,
-      'defense.pickNoise': 0.35, 'defense.overcommit': 0.7, 'defense.threatThreshold': 1.5,
+      'elixir.defenseReserve': 0,
+      'defense.pickNoise': 0.35, 'defense.overcommit': 0.2, 'defense.heavyAllowance': 2.5, 'defense.threatThreshold': 1.5,
+      'spells.predictLead': 0.4,
       'offense.aggression': 0.6, 'offense.counterPush': true,
       'offense.tankPlacement': 'bridge', 'offense.laneMode': 'weakest',
     },
     hard: {
+      'plan.enabled': true, 'plan.elixirNoise': 0,
       'timing.reactionMin': 0.25, 'timing.reactionMax': 0.5, 'timing.placementJitter': 0.15,
-      'timing.actionCooldown': 0.9,
+      'timing.misplaceChance': 0, 'timing.actionCooldown': 0.9,
       'elixir.pushThreshold': 8, 'elixir.maxHold': 9.5, 'elixir.leakTolerance': 0,
       'elixir.defenseReserve': 1,
-      'defense.pickNoise': 0, 'defense.overcommit': 1, 'defense.threatThreshold': 1,
+      'defense.pickNoise': 0, 'defense.threatThreshold': 0.5,
+      'defense.overcommit': 1.2, 'defense.heavyAllowance': 2,
+      'spells.predictLead': 1,
       'offense.pushCooldown': 1.5, 'offense.supportDelay': 0.75,
       'offense.aggression': 0.7, 'offense.counterPush': true,
       'offense.tankPlacement': 'bridge', 'offense.laneMode': 'weakest',

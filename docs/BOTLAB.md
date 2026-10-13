@@ -9,7 +9,7 @@ findings. Node built-ins only. No rendering. Simulation steps at dt = 1/30.
 | File | What it is |
 | --- | --- |
 | `js/botconfig.js` | `CR.BOT_DEFAULTS` (every tunable value), `CR.BOT_SCHEMA` (UI metadata per value), `CR.BOT_PRESETS` (7 named strategies), config helpers. |
-| `js/bot.js` | `CR.Bot(game, team, config)`. `update(dt)` plays through `game.canDeploy` and `game.deploy` only. Keeps `bot.stats`. |
+| `js/bot.js` | `CR.Bot(game, team, config)`. `update(dt)` plays through `game.canDeploy` and `game.deploy` only. Keeps `bot.stats`. Holds the push planner (`plan.enabled`). |
 | `tools/botlab.js` | The CLI: `match`, `sweep`, `tournament`, `review`, `schema`, `presets`. |
 | `docs/reviews/` | Saved outputs of the runs below, and the review logs. |
 
@@ -55,6 +55,11 @@ Columns:
 - Cards/min: cards played by the first competitor per minute of match time.
 - Avg length: match length, mm:ss.
 - OT rate: share of matches that reached overtime.
+- Towers down: princess and king towers destroyed per match, both sides added together. A king counts once,
+  though it is worth 3 crowns.
+
+Against an `ai:` tier the bot stats table shows that tier's planner stats. `--set` does not reach the tiers:
+their overlays live in `js/ai.js` (`AI.DIFFICULTY`).
 
 The AI deck rotates through `CR.AI_DECKS` by match index, so `--n 6` covers each AI deck once. A bot uses
 its own deck (`deck.cards`, or the preset's deck), or `CR.DEFAULT_DECK` when none is given.
@@ -146,14 +151,39 @@ play) runs in this order:
    answered after a random reaction delay in `timing.reactionMin` to `timing.reactionMax`. The best counter
    by score is played at the front or back of the lane, or as a building pull. A tank with no counter is
    kited with a cheap card. Damage spells are placed on clusters where the value reaches the cost times
-   `spells.minValueRatio`.
+   `spells.minValueRatio`. An answer costs at most `defense.overcommit` times the threat plus 2, plus
+   `defense.heavyAllowance` when the threat holds a tank or a win condition.
 3. Forced play. At `elixir.maxHold` elixir, after `elixir.leakTolerance` seconds, the cheapest troop goes out.
-4. Offence. A push starts when elixir reaches `elixir.pushThreshold` and a roll with `offense.aggression`
-   succeeds, or in the counter-push window after an enemy threat is cleared. A push runs in four steps: an
-   optional bait card, the tank (a tank, or a win condition held until `cycle.holdWinConUntil` elixir), support
-   after `offense.supportDelay`, then filler. A barrel is aimed at the princess tower once the tank is down.
-   The lane follows `offense.laneMode`. A push ends after `offense.pushTimeout` seconds, when its tank dies,
+4. Offence. With `plan.enabled` on (normal and hard), the planner runs. With it off (easy), the simple offence
+   runs: a push starts when elixir reaches `elixir.pushThreshold` and a roll with `offense.aggression`
+   succeeds, or in the counter-push window after an enemy threat is cleared. It runs in four steps: an
+   optional bait card, the tank, support after `offense.supportDelay`, then filler. A barrel is aimed at the
+   princess tower once the tank is down. A push ends after `offense.pushTimeout` seconds, when its tank dies,
    or on timeout, and then waits `offense.pushCooldown`.
+
+   Planner. One plan at a time. A regular push is a plan of 2 to `plan.maxCards` cards: a lead (a tank, or a
+   win condition once `cycle.holdWinConUntil` elixir is reached, or the best troop when neither fits), then
+   support, then extras. The cards are the best set of troops in hand that is affordable now (plus
+   `plan.doubleSlack` in double or triple elixir) with `elixir.defenseReserve` left over. The lead drops on
+   the bridge when its speed is at or below `plan.tankDropSpeed`, and at the back otherwise. Each support
+   drops `offense.supportGap` tiles behind the lead, at the time that makes it reach the enemy princess
+   `plan.supportGapTime` seconds after the lead, from the two unit speeds. A damage spell goes on an enemy
+   cluster within `plan.spellRange` of the lead when it passes the value check. Once the lead is within
+   `plan.towerSpellRange` of the lane princess, the best tower-damage spell goes on that princess.
+
+   Other starts, in order before a regular push. Punish: when the opponent's elixir estimate is below
+   `plan.punishBelow` after a new enemy play, a lead and support go down in the opposite lane at once, once per
+   enemy play. Counter: after a cleared threat with no tower lost, own troops heading for the bridge that are
+   worth `plan.counterValue` or more get a support behind them at once. Endgame (last `endgame.window` seconds
+   of regulation, and all of overtime, while behind or tied): the push roll rises by `endgame.aggression`, the
+   weaker princess lane is used, and tower spells go on the princess when the opponent's estimate is below
+   `endgame.spellBelow`.
+
+   Elixir tracking. The bot keeps an estimate of the opponent's elixir from the engine's regen rule and the
+   cost of each card they play. Their plays come from their hand (a card that leaves it was played), since
+   the engine clears its events every step. The planner reads the estimate, plus or minus `plan.elixirNoise`
+   (redrawn every 2 seconds). `bot.stats.elixirAdv` is the mean advantage (own elixir minus the estimate, plus
+   half the board value difference).
 5. Idle cycle. With nothing else planned and elixir at or above the push threshold, the cheapest troop goes
    out whenever fewer than `cycle.cardsPer10s` cards have been played in the last 10 seconds.
 
@@ -175,6 +205,9 @@ Tanks are exempt.
 | `pushesStarted` | Pushes begun. |
 | `baitPlays`, `supportPlays`, `forcedPlays`, `idlePlays`, `randomPlays` | Plays by kind. |
 | `towerDamage` | Hit points removed from enemy towers, from any source, while the bot runs. |
+| `punishPushes`, `counterPushes` | Plans started by the punish and counter rules. |
+| `planPlays`, `planSpells`, `endgamePlays`, `endgameTowerSpells` | Plays made inside planned pushes, spells among them, plays made in the endgame, and tower spells cast in the endgame or on arrival. |
+| `oppElixir`, `elixirAdv` | Mean opponent elixir estimate as read, and mean elixir advantage, over the match. |
 
 With `general.trace` on, `bot.trace` holds each play with its time, card, position, cost and reason. The
 review log uses it to name the reason for every bot play.
@@ -200,16 +233,17 @@ Generated from `CR.BOT_SCHEMA` by `node tools/botlab.js schema --md`. Keys are d
 | Parameter | Type | Default | Range or options | Meaning |
 | --- | --- | --- | --- | --- |
 | `timing.thinkInterval` | number | 0.25 | 0.1 to 0.5 (step 0.05) | Seconds between decisions |
-| `timing.reactionMin` | number | 0.4 | 0.1 to 2 (step 0.05) | Shortest delay before answering a threat |
-| `timing.reactionMax` | number | 0.8 | 0.1 to 2.5 (step 0.05) | Longest delay before answering a threat |
+| `timing.reactionMin` | number | 0.4 | 0.1 to 3 (step 0.05) | Shortest delay before answering a threat |
+| `timing.reactionMax` | number | 0.8 | 0.1 to 3.5 (step 0.05) | Longest delay before answering a threat |
 | `timing.actionCooldown` | number | 1 | 0.2 to 3 (step 0.05) | Seconds between plays |
 | `timing.placementJitter` | number | 0.4 | 0 to 1.5 (step 0.05) | Random tile offset on each drop |
+| `timing.misplaceChance` | number | 0 | 0 to 0.5 (step 0.01) | Chance a drop lands a few tiles off the planned spot |
 
 ### Elixir
 
 | Parameter | Type | Default | Range or options | Meaning |
 | --- | --- | --- | --- | --- |
-| `elixir.pushThreshold` | number | 8 | 4 to 10 (step 0.5) | Elixir needed to start a push |
+| `elixir.pushThreshold` | number | 8 | 4 to 10 (step 0.5) | Elixir needed to start a simple push or idle cycle (not planned pushes) |
 | `elixir.maxHold` | number | 9.5 | 8 to 10 (step 0.1) | Elixir at which a forced play fires |
 | `elixir.leakTolerance` | number | 0 | 0 to 3 (step 0.25) | Seconds at max hold before the forced play |
 | `elixir.defenseReserve` | number | 2 | 0 to 6 (step 0.5) | Elixir kept back for defence on filler and support |
@@ -220,15 +254,15 @@ Generated from `CR.BOT_SCHEMA` by `node tools/botlab.js schema --md`. Keys are d
 
 | Parameter | Type | Default | Range or options | Meaning |
 | --- | --- | --- | --- | --- |
-| `offense.aggression` | number | 0.6 | 0 to 1 (step 0.05) | How soon a push starts once elixir allows |
+| `offense.aggression` | number | 0.6 | 0 to 1 (step 0.05) | Chance per decision to start a push, once elixir allows |
 | `offense.laneMode` | enum | weakest | weakest | sameLast | opposite | random | Which lane the next push takes |
-| `offense.tankPlacement` | enum | back | back | bridge | Tank drop spot: back or at the bridge |
-| `offense.supportDelay` | number | 1.5 | 0 to 5 (step 0.25) | Seconds after the tank before support |
+| `offense.tankPlacement` | enum | back | back | bridge | Tank drop spot: back or bridge (simple offence; planned pushes drop by speed) |
+| `offense.supportDelay` | number | 1.5 | 0 to 5 (step 0.25) | Seconds after the tank before support (simple offence; planned pushes time it by speed) |
 | `offense.supportGap` | number | 2 | 0 to 5 (step 0.25) | Tiles behind the tank for support |
-| `offense.splitPushChance` | number | 0.1 | 0 to 1 (step 0.05) | Chance to open a second lane push |
+| `offense.splitPushChance` | number | 0.1 | 0 to 1 (step 0.05) | Chance to open a second lane push (simple offence only) |
 | `offense.pocketUsage` | enum | always | always | tankOnly | never | Use the pocket once a princess is down |
-| `offense.baitChance` | number | 0 | 0 to 1 (step 0.05) | Chance to bait with a cheap card before a push |
-| `offense.counterPush` | bool | on | on / off | Push right after a threat is cleared |
+| `offense.baitChance` | number | 0 | 0 to 1 (step 0.05) | Chance to bait with a cheap card before a push (simple offence only) |
+| `offense.counterPush` | bool | on | on / off | Support or push right after a threat is cleared |
 | `offense.counterWindow` | int | 8 | 0 to 20 (step 1) | Seconds the counter-push window stays open |
 | `offense.counterElixir` | number | 5 | 3 to 10 (step 0.5) | Elixir needed for a counter push |
 | `offense.pushTimeout` | number | 45 | 20 to 60 (step 1) | Seconds before a push is abandoned |
@@ -253,6 +287,7 @@ Generated from `CR.BOT_SCHEMA` by `node tools/botlab.js schema --md`. Keys are d
 | `defense.costBias` | number | 0.1 | 0 to 0.5 (step 0.01) | Score penalty per elixir spent |
 | `defense.overkillPenalty` | number | 0.25 | 0 to 1 (step 0.05) | Penalty for cards costing above the threat |
 | `defense.overcommit` | number | 1 | 0 to 3 (step 0.1) | Max elixir per answer = threat x this + 2 |
+| `defense.heavyAllowance` | number | 0 | 0 to 6 (step 0.5) | Extra elixir an answer may cost against a tank or win condition |
 | `defense.pickNoise` | number | 0 | 0 to 0.5 (step 0.01) | Chance to pick the second-best answer |
 | `defense.kiteBuildings` | bool | on | on / off | Allow buildings as kite drops |
 | `defense.kiteMaxCost` | int | 3 | 1 to 6 (step 1) | Most elixir a kite drop may cost |
@@ -275,6 +310,30 @@ Generated from `CR.BOT_SCHEMA` by `node tools/botlab.js schema --md`. Keys are d
 | `cycle.playCheapestWhenIdle` | bool | on | on / off | Play the cheapest troop when nothing else is planned |
 | `cycle.cardsPer10s` | number | 4 | 2 to 8 (step 0.5) | Target cards per 10 s for idle cycling |
 | `cycle.holdWinConUntil` | number | 6 | 0 to 10 (step 0.5) | No win condition below this elixir |
+
+### Plan
+
+| Parameter | Type | Default | Range or options | Meaning |
+| --- | --- | --- | --- | --- |
+| `plan.enabled` | bool | on | on / off | Plan pushes (tank, timed support, spells, punish, counter). Off: simple offence |
+| `plan.maxCards` | int | 3 | 2 to 4 (step 1) | Most cards in one push, tank and support included |
+| `plan.tankDropSpeed` | number | 1.25 | 0.5 to 2.5 (step 0.05) | Tanks at or below this speed drop on the bridge, faster ones at the back |
+| `plan.supportGapTime` | number | 0.5 | 0 to 2 (step 0.05) | Seconds the support should land behind the tank |
+| `plan.doubleSlack` | number | 2 | 0 to 4 (step 0.25) | Elixir a push may start short of in double or triple elixir |
+| `plan.advantageGate` | number | -6 | -6 to 6 (step 0.5) | Regular pushes wait while the elixir advantage is below this |
+| `plan.elixirNoise` | number | 0 | 0 to 3 (step 0.1) | Error on the opponent elixir estimate, plus or minus |
+| `plan.punishBelow` | number | 3 | 1 to 6 (step 0.25) | Opponent elixir estimate below this starts a punish push |
+| `plan.counterValue` | number | 3 | 1 to 8 (step 0.25) | Surviving troops (elixir value) that trigger a counter support |
+| `plan.spellRange` | number | 6 | 2 to 10 (step 0.5) | Tiles around the push tank where spells look for clusters |
+| `plan.towerSpellRange` | number | 9 | 0 to 16 (step 0.5) | Tiles from the enemy princess at which a push casts a tower spell |
+
+### Endgame
+
+| Parameter | Type | Default | Range or options | Meaning |
+| --- | --- | --- | --- | --- |
+| `endgame.window` | number | 60 | 0 to 120 (step 5) | Seconds before regulation ends that endgame pressure starts (all of overtime too) |
+| `endgame.aggression` | number | 0.4 | 0 to 1 (step 0.05) | Added to the push roll when behind or tied in the endgame |
+| `endgame.spellBelow` | number | 3 | 0 to 6 (step 0.25) | Opponent elixir estimate below this makes a tower spell worth casting |
 
 ### Deck
 
@@ -394,23 +453,90 @@ Not reached in this round: overtime under 50%, towers per match at least 1.2, ha
 lone-troop halving. The remaining simtest windows are corner and wedge cases (a unit between a wall or river edge
 and a building) that the local planner does not clear; they are listed under Limits.
 
-### Remaining problems
+### Round 4: push planner, elixir tracking, defence answers
 
-- Stalemates remain. AI vs AI matches still end 0-0 on crowns about half the time, so 75 to 81% reach
-  overtime. Two crowns in three minutes is what the 40% overtime target needs, and the current push rate gives
-  about 0.5 crowns per side. Crowns per side are roughly Poisson at this rate, which alone gives a tie of about
-  50%. The 40% target needs more decisive games (focus on one princess, a second push after a kill), not only
-  more pushes. Towers per match now clear the 0.8 target.
-- Difficulty tiers: `ai:normal` over `ai:easy` and `ai:hard` over `ai:easy` clear 65% and 80%. `ai:hard` over
-  `ai:normal` is 51 to 63% across seeds, short of 65%. Counter errors and reaction time matter less than
-  expected, so the gap is set by shared bot logic, not by overlay values.
-- Presets. `cycle` (10 to 25%) and `turtle` (15%) and `bridgespam` (28%) are below 40%. `cycle` makes about
-  57 defensive plays and 2 pushes per match, and its cheap troops die chasing into the enemy half. `turtle`
-  rarely pushes and gets outscored. Neither is fixed by the knobs I swept (`defense.threatThreshold`,
-  `defense.overcommit`, `elixir.pushThreshold`, `offense.aggression`, `cycle.cardsPer10s`).
-- Units still get stuck in pockets between two of their own buildings (a Hog Rider beside its own princess and
-  cannon, for example), and crowds at the bridge mouths slow troops. simtest counts the windows these cause; see
-  Limits.
+Changes: the push planner (`plan.enabled`, normal and hard), opponent elixir tracking, a defence answer
+cap for tanks and win conditions (`defense.heavyAllowance`), and the tier overlays in `js/ai.js`. Easy keeps
+the simple offence. See "How the bot decides" for the planner's rules.
+
+Measured with botlab at n=900 for each pairing (seeds 1, 2 and 3, 300 matches each). Before is the commit
+`HEAD` (Round 3), run from a copy of that tree.
+
+| Measure | Before | After |
+| --- | --- | --- |
+| `ai:normal` vs `ai:normal`, overtime rate | 74.8% | 48.4% |
+| `ai:normal` vs `ai:normal`, crowns (both sides) per match | 1.03 | 2.56 |
+| `ai:normal` vs `ai:normal`, towers down per match | not measured | 2.20 |
+| `ai:hard` vs `ai:normal`, win rate | 57.2% | 75.0% |
+| `ai:normal` vs `ai:easy`, win rate | 73.2% | 60.0% |
+| `ai:hard` vs `ai:easy`, win rate | 79.3% | 80.1% |
+| Tournament at n=20, `ai:normal` points share | 61.1% | 38.9% |
+| Tournament at n=20, `ai:hard` points share | 70.6% | 66.1% |
+
+Targets from the brief: overtime under 50% (met, 48.4%), towers 1.2 or more (met, 2.20), hard over normal
+65% or more (met, 75.0%), normal over easy 65% or more (not met, 60.0%), hard over easy 80% or more (met,
+80.1%, a margin of 0.1 point).
+
+What the planner changed, and what did not:
+
+1. Stalemates. Before, 74.8% of normal vs normal matches reached overtime. The planner starts pushes from the
+   composition check instead of a fixed threshold, and the cheap answer cap for normal (`defense.overcommit`
+   0.1) stops the bot spending its elixir on small threats. Crowns per match rose from 1.03 to 2.56.
+2. Bugs found along the way. These affect the Round 3 code too.
+   - Missed plays. The engine clears `game.events` every step, and when the other side deploys after this
+     bot has sampled, the bot never sees the play. The opponent's plays are now read from their hand, and
+     their lane from their newest units. The opponent elixir estimate is within 0.03 on average of the
+     engine's value (a one-step lag at each play).
+   - Silent clamps. `timing.reactionMin` and `timing.reactionMax` were clamped by the schema to 2.0 and 2.5,
+     so easy's overlay (2 to 3 seconds) was cut to 2 to 2.5 seconds without a warning. The ranges are now 3.0
+     and 3.5. A check confirms every overlay value survives `CR.botSet`.
+   - Punish spam. Restricted to one punish per enemy play, with a lead and at least two cards. Without the
+     restriction the bot fired a one-card punish on nearly every low-elixir moment, which was about 17 of 18
+     pushes per match, and most of those were weak.
+3. Normal's answer cap. The cap was the main lever for the tier gap and for overtime. Lower cheap answers help
+   AI vs AI and hurt normal vs easy. The table shows the trade-off (n=900 each):
+
+   | Normal `defense.overcommit` / `heavyAllowance` / `elixir.defenseReserve` | AI vs AI overtime | Normal vs easy | Hard vs normal |
+   | --- | --- | --- | --- |
+   | 0.1 / 2.5 / 0 (shipped) | 48.4% | 60.0% | 75.0% |
+   | 0.1 / 4 / 0 | 50.3% | 62.4% | 77.9% |
+   | 0.2 / 2.5 / 0 | 56.2% | 65.4% | 75.2% |
+   | 0.3 / 2.5 / 0 | 57.2% | 69.3% | 67.1% |
+
+   No setting tried clears both overtime under 50% and normal over easy at 65%.
+4. Hard. Its answer cap is higher (`defense.overcommit` 1.2, `heavyAllowance` 2), and its threat threshold is
+   0.5. Hard vs easy went from 79.3% to 80.1%. Lowering hard's answer cap cost hard vs normal in the runs tried
+   (hard `defense.overcommit` 0.2 gave 54%, 0.4 gave 60%, 0.7 gave 63%, with normal's cap held at 0.2).
+5. Knobs with no measurable effect (within about 3 points at n=300): `plan.maxCards` 4, `plan.advantageGate`,
+   `plan.towerSpellRange` from 9 to 16, `spells.minValueRatio` from 0.7 to 1.4, `endgame.window` 90 and 120,
+   `endgame.aggression` (it saturates the push roll at 0.4 or more), `plan.counterValue` 2 to 5,
+   `elixir.maxHold` 9.5, `timing.actionCooldown` 1.0 to 1.5, and `offense.aggression` 0.3 to 0.9. A push
+   advantage roll was tried and removed.
+6. Tests. `node tools/mechtest.js`: all 71 checks ok. `node tools/aitest.js`: runs (a 10-match sample, hard 8
+   wins, normal 2). Tournament at n=20: table above and the standings below.
+
+Tournament at n=20 (`node tools/botlab.js tournament --n 20`), points share: `bot:control` 85.6%,
+`bot:beatdown` 81.1%, `bot:bait` 76.7%, `ai:hard` 66.1%, `bot:turtle` 46.1%, `ai:easy` 38.9%, `ai:normal` 38.9%,
+`bot:bridgespam` 34.4%, `bot:cycle` 20.6%, `bot:random` 11.1%. Before the change, `ai:normal` was 61.1%. Most of
+that drop is against `bot:control` (1 win in 20) and `bot:bait` (2 in 20). The cheap answer cap is the likely
+cause, but I did not isolate it in the field.
+
+Pushes, measured on hard in 60 matches: about 7 regular pushes start per match, plus about 2 punish or counter
+starts. About 45% of regular pushes reach the enemy princess range, and each one that does deals about 1,000 hp. Plans complete in
+about 5 seconds, so plans do not stall. The limit is elixir: most of the bot's elixir goes to defence, and
+the cards in hand rarely add up to a complete push above 8 elixir.
+
+### Remaining problems (after round 4)
+
+- Normal over easy is 60.0%, below the 65% target. Overtime and this tier cannot both be met with the answer
+  cap alone (table in Round 4). The next lever to try is a separate answer rule for mid-size threats, which the
+  current cap treats the same as small ones.
+- Normal in the preset field fell (see the tournament numbers above). Likely the same cause as the tier gap.
+- Hard over easy at 80.1% clears its target by 0.1 point. That is inside the noise at n=900 (about 1.4 points).
+- Pushes convert poorly: about 3 of 7 reach the princess range, and each deals about 1,000 hp. Spell timing
+  and support timing did not change this.
+- About half of normal vs normal matches still reach overtime (48.4%, just under the target).
+- `--set` and `--param` do not reach the `ai:` tiers, so tier experiments need a copy of `CR.AI.DIFFICULTY`.
 
 ## Limits
 

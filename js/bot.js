@@ -3,8 +3,9 @@
 // (see js/botconfig.js); the only constants left are board geometry and measurement thresholds.
 //
 // Geometry is done in the bot's own frame, like js/ai.js: fy = y for team 1 (top), fy = 32 - y for
-// team 0. In that frame the bot's princess towers sit near fy 6.5, the river is fy 15..17, and
-// enemies walk toward increasing fy. x is the same in both frames.
+// team 0. In that frame the bot's princess towers sit near fy 6.5, the river is fy 15..17, and the bot's
+// own troops walk toward increasing fy (the enemy side). Enemies walk toward decreasing fy. x is the same
+// in both frames.
 //
 // Randomness comes from a seeded mulberry32 (never Math.random), so a config and seed replay exactly.
 var CR = (globalThis.CR = globalThis.CR || {});
@@ -116,6 +117,10 @@ var CR = (globalThis.CR = globalThis.CR || {});
       defenses: 0, kitePlays: 0, pushesStarted: 0,
       baitPlays: 0, supportPlays: 0, forcedPlays: 0, idlePlays: 0, randomPlays: 0,
       towerDamage: 0,
+      // Planner. Counts of plans by kind, and plays made inside them.
+      punishPushes: 0, counterPushes: 0, planPlays: 0, planSpells: 0, endgamePlays: 0, endgameTowerSpells: 0,
+      // Mean over the match: the opponent elixir estimate as the bot read it, and the elixir advantage.
+      oppElixir: 0, elixirAdv: 0,
     };
   }
 
@@ -148,12 +153,25 @@ var CR = (globalThis.CR = globalThis.CR || {});
     this.enemySpends = [];       // { t, cost } of the opponent's recent plays
     this.enemyLastLane = -1;
     this.lastPushLane = -1;
+    this.oppEl = CR.ELIXIR.start;  // the opponent's elixir, tracked from the engine's regen rule and their deploys
+    this.noiseVal = 0;           // current error on the estimate (planner, normal tier)
+    this.noiseUntil = -1;
+    this.plans = [];             // active planner pushes
+    this.plannedCooldownUntil = 0;
+    this.prevOwn = {};           // own unit id -> { x, y, t, vx, vy }, for counter-push heading
+    this.advantage = 0;          // elixir advantage, last think
+    this.sumOpp = 0; this.sumAdv = 0; this.sumN = 0;
     this.towerHp = new Map();    // enemy tower -> last hp seen
     var self = this;
     game.entities.forEach(function (e) {
       if (e.kind === 'tower' && e.team === self.enemy) self.towerHp.set(e, e.hp);
     });
     this.pending = [];           // spells waiting for their impact check
+    this.enemyHand = game.players[this.enemy] ? game.players[this.enemy].hand.slice() : null;
+    this.enemyMaxId = 0;
+    this.lastEnemyPlayT = -1;    // last time the opponent played a card
+    this.lastPunishT = -1;       // a punish answers one enemy play, not every low-elixir moment after it
+    game.entities.forEach(function (e) { if (e.id > self.enemyMaxId) self.enemyMaxId = e.id; });
   }
 
   Bot.prototype.R = function (cardId) { return this.roles[cardId] || null; };
@@ -177,7 +195,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var g = this.game;
     if (!g) return;
     // Sample before the end check so damage in the final step still counts.
-    this.sample();
+    this.sample(dt);
     if (g.result || g.phase === 'ended') return;
     var me = g.players[this.team];
     if (me && me.elixir >= 9.99) this.stats.leakSeconds += dt;
@@ -190,18 +208,36 @@ var CR = (globalThis.CR = globalThis.CR || {});
   };
 
   // Per step bookkeeping: enemy plays, tower damage, spell impact checks.
-  Bot.prototype.sample = function () {
+  Bot.prototype.sample = function (dt) {
     var g = this.game, t = g.time, self = this;
-    (g.events || []).forEach(function (ev) {
-      if (ev.type === 'deploy' && ev.team === self.enemy) {
-        // Elixir the opponent spent in the last 8 s. A big spend leaves it short, so a push now is punished.
-        var ec = CR.CARDS[ev.cardId] ? CR.CARDS[ev.cardId].cost : 0;
-        self.enemySpends.push({ t: t, cost: ec });
-        self.enemyPlays.push({ t: t, cardId: ev.cardId, lane: laneOf(ev.x) });
-        if (self.enemyPlays.length > 20) self.enemyPlays.shift();
-        var R = self.R(ev.cardId);
-        if (R && !R.spell) self.enemyLastLane = laneOf(ev.x);
-      }
+    // Opponent elixir: the engine's regen rule (1 per regen seconds at the current multiplier, capped), less the
+    // cost of each card they deploy. Exact, since the rule and the deploy events are both public.
+    this.oppEl = Math.min(CR.ELIXIR.max, this.oppEl + (dt * (g.elixirMult || 1)) / CR.ELIXIR.regen);
+    // The opponent's plays come from their hand: a card that leaves it was played. The engine clears its
+    // events every step, and the other side may deploy after this bot has sampled, so events miss some plays.
+    // The lane comes from the newest enemy entities (engine ids only grow).
+    var eh = g.players[this.enemy].hand.slice();
+    var left = this.enemyHand ? this.enemyHand.slice() : eh.slice();
+    eh.forEach(function (cid) { var i = left.indexOf(cid); if (i >= 0) left.splice(i, 1); });
+    this.enemyHand = eh;
+    var firstNew = null, maxId = this.enemyMaxId;
+    g.entities.forEach(function (e) {
+      if (e.team !== self.enemy || e.kind === 'tower' || e.id <= self.enemyMaxId) return;
+      if (!firstNew || e.id < firstNew.id) firstNew = e;
+      if (e.id > maxId) maxId = e.id;
+    });
+    this.enemyMaxId = maxId;
+    left.forEach(function (cid) {
+      var ec = CR.CARDS[cid] ? CR.CARDS[cid].cost : 0;
+      var R = self.R(cid);
+      self.oppEl = Math.max(0, self.oppEl - ec);
+      // Elixir the opponent spent in the last 8 s. A big spend leaves it short, so a push now is punished.
+      self.enemySpends.push({ t: t, cost: ec });
+      var lane = firstNew ? laneOf(firstNew.x) : -1;
+      self.enemyPlays.push({ t: t, cardId: cid, lane: lane });
+      self.lastEnemyPlayT = t;
+      if (self.enemyPlays.length > 20) self.enemyPlays.shift();
+      if (R && !R.spell && firstNew) self.enemyLastLane = laneOf(firstNew.x);
     });
     this.enemySpends = this.enemySpends.filter(function (x) { return x.t >= t - 8; });
     this.towerHp.forEach(function (hp0, tw) {
@@ -242,7 +278,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var myUnits = g.getUnitsOf(team).filter(alive);
     var myTowers = g.getTowers(team).filter(alive);
 
-    this.trackVelocities(enemies, t);
+    this.trackVelocities(enemies, t, 'prev');
+    this.trackVelocities(myUnits, t, 'prevOwn');
     if (cfg.general.randomPlay) {
       if (t >= this.nextPlayT) {
         var rp = this.randomOption(me);
@@ -258,6 +295,19 @@ var CR = (globalThis.CR = globalThis.CR || {});
     } else {
       this.capSince = null;
     }
+    // Planner inputs: the opponent elixir as read (with the normal tier's error), the elixir advantage, endgame state.
+    var eg = this.endgameState(me);
+    if (cfg.plan.elixirNoise > 0 && t >= this.noiseUntil) {
+      this.noiseVal = this.rand(-cfg.plan.elixirNoise, cfg.plan.elixirNoise);
+      this.noiseUntil = t + 2;
+    }
+    var oppRead = this.oppElRead();
+    this.advantage = (me.elixir - oppRead) + 0.5 * (this.boardValue(myUnits) - this.boardValue(enemies));
+    this.sumOpp += oppRead; this.sumAdv += this.advantage; this.sumN++;
+    this.stats.oppElixir = this.sumOpp / this.sumN;
+    this.stats.elixirAdv = this.sumAdv / this.sumN;
+    var ctx = { oppEl: oppRead, eg: eg, adv: this.advantage };
+
     if (t < this.nextPlayT) return;
 
     var self0 = this;
@@ -280,22 +330,25 @@ var CR = (globalThis.CR = globalThis.CR || {});
     if (!opt && this.capSince !== null && t - this.capSince >= cfg.elixir.leakTolerance) {
       opt = this.forcedPlay(me);
     }
-    if (!opt && !uncovered) opt = this.offence(me, myUnits, eTowers, t);
+    if (!opt && !uncovered) {
+      opt = cfg.plan.enabled ? this.planOffence(me, myUnits, eTowers, enemies, t, ctx) : this.offence(me, myUnits, eTowers, t);
+    }
     if (!opt && !uncovered) opt = this.idlePlay(me, t);
     if (opt) this.play(opt, t);
   };
 
-  Bot.prototype.trackVelocities = function (enemies, t) {
-    var next = {};
-    enemies.forEach(function (e) {
-      var p = this.prev[e.id], vx = 0, vy = 0;
+  // Velocity of each unit since the last think. store is 'prev' (enemies) or 'prevOwn' (own units).
+  Bot.prototype.trackVelocities = function (units, t, store) {
+    var old = this[store], next = {};
+    units.forEach(function (e) {
+      var p = old[e.id], vx = 0, vy = 0;
       if (p && t > p.t) {
         vx = (e.x - p.x) / (t - p.t);
         vy = (e.y - p.y) / (t - p.t);
       }
       next[e.id] = { x: e.x, y: e.y, t: t, vx: vx, vy: vy };
-    }, this);
-    this.prev = next;
+    });
+    this[store] = next;
   };
 
   Bot.prototype.ourDefence = function (myUnits, lane) {
@@ -396,12 +449,13 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
   Bot.prototype.bestDefence = function (T, me, enemies) {
     var self = this, cfg = this.cfg, d = cfg.defense, opts = [];
-    var maxCost = T.need * d.overcommit + 2;
+    var zone = enemies.filter(function (e) { return fyOf(self.team, e.y) < d.threatLine; });
+    var maxCost = T.need * d.overcommit + 2 + ((T.tank || T.winCon) ? d.heavyAllowance : 0);
     me.hand.forEach(function (cid, hIdx) {
       var R = self.R(cid);
       if (!R || R.cost > me.elixir + 1e-6 || R.cost > maxCost) return;
       if (R.spell) {
-        var sp = self.spellPlay(R, hIdx, enemies);
+        var sp = self.spellPlay(R, hIdx, zone);
         if (sp) { sp.reason = 'defend spell ' + R.id; opts.push(sp); }
         return;
       }
@@ -458,9 +512,9 @@ var CR = (globalThis.CR = globalThis.CR || {});
   };
 
   // Best aim for a damage spell against enemy clusters in the threat zone. Returns an option or null.
-  Bot.prototype.spellPlay = function (R, hIdx, enemies) {
+  // zone: the enemy units the spell may land on (threats for defence, the push's contact for the planner).
+  Bot.prototype.spellPlay = function (R, hIdx, zone) {
     var self = this, cfg = this.cfg, team = this.team;
-    var zone = enemies.filter(function (e) { return fyOf(team, e.y) < cfg.defense.threatLine; });
     if (!zone.length || !R.counters || R.barrel) return null;
     var rad = R.log ? 2.0 : (R.radius || 1.5);
     var best = null;
@@ -567,8 +621,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
   };
 
   // Lane choice for a new push. Returns 0 or 1.
-  Bot.prototype.pickLane = function (eTowers, exclude) {
-    var self = this, mode = this.cfg.offense.laneMode;
+  Bot.prototype.pickLane = function (eTowers, exclude, modeOverride) {
+    var self = this, mode = modeOverride || this.cfg.offense.laneMode;
     var best = -1, bestScore = -Infinity;
     for (var L = 0; L < 2; L++) {
       if (exclude === L) continue;
@@ -741,7 +795,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
   Bot.prototype.idlePlay = function (me, t) {
     var cfg = this.cfg;
     if (!cfg.cycle.playCheapestWhenIdle) return null;
-    if (this.pushes.length) return null;
+    if (this.pushes.length || this.plans.length) return null;
     if (me.elixir < cfg.elixir.pushThreshold) return null;
     var cutoff = t - 10;
     var recent = this.recentPlays.filter(function (p) { return p >= cutoff; }).length;
@@ -762,6 +816,319 @@ var CR = (globalThis.CR = globalThis.CR || {});
       fx: this.lay.princessX[lane], fy: pick.R.ranged ? this.backFy() : this.frontFy(),
       reason: 'cycle',
     };
+  };
+
+  // ---- push planner -------------------------------------------------------
+  // Used when plan.enabled is on (normal and hard). One plan at a time. A regular push is a plan of 2 to
+  // plan.maxCards cards: a lead (tank, or a win condition, or the best troop when neither fits), then support
+  // timed to land just behind it, then extra cards. Damage spells join when an enemy cluster forms near the
+  // lead. Three other starts share the same plan object: punish (opponent elixir nearly spent), counter
+  // (surviving troops heading out get support at once) and endgame (behind or tied late in the match, which
+  // raises the push roll and keeps one lane).
+
+  // Opponent elixir as the bot reads it: the tracked value plus the tier's error.
+  Bot.prototype.oppElRead = function () {
+    var n = this.cfg.plan.elixirNoise;
+    return clamp(this.oppEl + (n > 0 ? this.noiseVal : 0), 0, CR.ELIXIR.max);
+  };
+
+  Bot.prototype.boardValue = function (units) {
+    var s = 0, self = this;
+    units.forEach(function (u) { s += self.unitValue(u); });
+    return s;
+  };
+
+  // Endgame: the last endgame.window seconds of regulation, and all of overtime, while behind or tied.
+  Bot.prototype.endgameState = function (me) {
+    var g = this.game;
+    var late = g.phase === 'overtime' || (g.phase === 'regulation' && g.timeLeft <= this.cfg.endgame.window);
+    var them = g.players[this.enemy];
+    return { late: late, active: late && me.crowns <= them.crowns };
+  };
+
+  Bot.prototype.enemyPrincessFy = function () { return H - this.lay.princessFy; };
+
+  // Seconds for a unit at speed to get from a frame point to the enemy princess in a lane.
+  Bot.prototype.etaTo = function (fx, fy, lane, speed) {
+    return dist(fx, fy, this.lay.princessX[lane], this.enemyPrincessFy()) / Math.max(0.1, speed);
+  };
+
+  // Drop spot for a lead. In the pocket when the enemy princess in the lane is down. Win conditions that
+  // are not tanks use the bridge. Otherwise slow units (at or below plan.tankDropSpeed) drop on the bridge
+  // to get the head start, and faster ones drop at the back to arrive with their support.
+  Bot.prototype.leadSpot = function (R, lane, pocket) {
+    var u = CR.UNITS[R.unitId] || {};
+    var speed = u.speed || 1;
+    var fy;
+    if (pocket) fy = POCKET_FY;
+    else if (R.winCon && !R.tank) fy = BRIDGE_FY;
+    else fy = speed <= this.cfg.plan.tankDropSpeed ? BRIDGE_FY : this.lay.princessFy + 2;
+    return { fx: this.lay.princessX[lane], fy: fy, speed: speed };
+  };
+
+  // Cards for a push from hand. Returns [{ role, id, cost }] (lead first), or null if no set fits.
+  // Every subset of the troops in hand (at most 16 with 4 cards) with minCards to maxCards members is tried.
+  // A set fits when its total cost is within budget and its lead is affordable now. The lead is a tank, or
+  // a win condition (always when punishing, else after cycle.holdWinConUntil). With no lead in hand, the set
+  // is led by its best member. The set with the most value wins: lead hp, support damage per second.
+  // opts: punish, supportOnly (no lead), requireLead, minCards, maxCards.
+  Bot.prototype.buildComp = function (me, budget, opts) {
+    var self = this, pc = this.cfg.plan;
+    opts = opts || {};
+    var maxCards = opts.maxCards || pc.maxCards;
+    var minCards = opts.minCards || 2;
+    var winOk = opts.punish || me.elixir >= this.cfg.cycle.holdWinConUntil;
+    var cards = [];
+    me.hand.forEach(function (cid, idx) {
+      var R = self.R(cid);
+      if (R && R.troop) cards.push({ idx: idx, R: R });
+    });
+    var hp = function (R) { var u = CR.UNITS[R.unitId]; return u ? u.hp : 0; };
+    var leadOk = function (R) { return (R.tank || (R.winCon && winOk)) && R.cost <= me.elixir + 1e-9; };
+    var leadValue = function (R) { return hp(R) / 400 + (R.winCon ? 1 : 0); };
+    var supValue = function (R) { return (R.dps / 60) * (R.ranged || R.splash ? 1.3 : 1); };
+    var best = null, n = cards.length;
+    for (var mask = 1; mask < (1 << n); mask++) {
+      var set = [], cost = 0;
+      for (var b = 0; b < n; b++) if (mask & (1 << b)) { set.push(cards[b]); cost += cards[b].R.cost; }
+      if (set.length < minCards || set.length > maxCards || cost > budget + 1e-9) continue;
+      var lead = null, value = 0;
+      if (!opts.supportOnly) {
+        set.forEach(function (c) {
+          if (leadOk(c.R) && (!lead || leadValue(c.R) > leadValue(lead.R))) lead = c;
+        });
+        if (!lead && opts.requireLead) continue;
+        if (!lead) {
+          // No lead in hand: the best affordable member leads.
+          set.forEach(function (c) {
+            if (c.R.cost <= me.elixir + 1e-9 && (!lead || supValue(c.R) > supValue(lead.R))) lead = c;
+          });
+          if (!lead) continue;
+        }
+        value += leadValue(lead.R);
+      }
+      set.forEach(function (c) { if (c !== lead) value += supValue(c.R); });
+      if (!best || value > best.value) best = { value: value, set: set, lead: lead };
+    }
+    if (!best) return null;
+    var out = [];
+    var rest = best.set.filter(function (c) { return c !== best.lead; })
+      .sort(function (a, c) { return supValue(c.R) - supValue(a.R); });
+    if (best.lead) out.push({ role: 'lead', id: best.lead.R.id, cost: best.lead.R.cost, idx: best.lead.idx });
+    rest.forEach(function (c, i) {
+      out.push({ role: opts.supportOnly || i === 0 ? 'support' : 'extra', id: c.R.id, cost: c.R.cost, idx: c.idx });
+    });
+    return out;
+  };
+
+  Bot.prototype.newPlan = function (kind, lane, comp, t) {
+    this.stats.pushesStarted++;
+    if (kind === 'punish') this.stats.punishPushes++;
+    if (kind === 'counter') this.stats.counterPushes++;
+    this.lastPushLane = lane;
+    return {
+      kind: kind, lane: lane, start: t, cards: comp,
+      leadDone: false, leadAt: -1, leadHeavy: false, nextDue: -1, anchorX: 0, anchorFy: 0, done: false,
+    };
+  };
+
+  // Survivors per lane: own troops in the own half that are moving toward the bridge, valued in elixir.
+  Bot.prototype.survivors = function (myUnits) {
+    var self = this, pf = this.lay.princessFy;
+    var out = [{ value: 0, x: 0, fy: 0, n: 0 }, { value: 0, x: 0, fy: 0, n: 0 }];
+    myUnits.forEach(function (u) {
+      if (u.kind !== 'troop') return;
+      var fy = fyOf(self.team, u.y);
+      if (fy < pf - 1 || fy >= RIVER_TOP + 1) return;
+      var v = self.prevOwn[u.id];
+      if (!v) return;
+      var vfy = self.team === 1 ? v.vy : -v.vy;
+      if (vfy <= 0.1) return;
+      var S = out[laneOf(u.x)];
+      S.value += self.unitValue(u); S.x += u.x; S.fy += fy; S.n++;
+    });
+    out.forEach(function (S) { if (S.n) { S.x /= S.n; S.fy /= S.n; } });
+    return out;
+  };
+
+  // Starts a plan when none is active. Order: punish, counter, regular.
+  Bot.prototype.planStart = function (me, myUnits, eTowers, t, ctx) {
+    var pc = this.cfg.plan, oc = this.cfg.offense, el = this.cfg.elixir, eg = ctx.eg;
+    var slack = (this.game.elixirMult || 1) >= 2 ? pc.doubleSlack : 0;
+
+    // Punish: the opponent has just spent down. Hit the opposite lane with a win condition now.
+    if (ctx.oppEl < pc.punishBelow && this.enemyLastLane >= 0 && this.lastEnemyPlayT > this.lastPunishT) {
+      var pcomp = this.buildComp(me, me.elixir + slack, { punish: true, minCards: 2, requireLead: true });
+      if (pcomp) {
+        this.lastPunishT = t;
+        return this.newPlan('punish', 1 - this.enemyLastLane, pcomp, t);
+      }
+    }
+
+    // Counter: surviving troops are heading out after a cleared attack. Add support behind them now.
+    if (oc.counterPush && t < this.counterUntil && me.elixir >= oc.counterElixir && t >= this.plannedCooldownUntil) {
+      var sv = this.survivors(myUnits);
+      var lane = sv[0].value >= sv[1].value ? 0 : 1;
+      if (sv[lane].value >= pc.counterValue) {
+        var ccomp = this.buildComp(me, me.elixir + slack, { supportOnly: true, minCards: 1, maxCards: 2 });
+        if (ccomp) {
+          this.counterUntil = -1;
+          var CP = this.newPlan('counter', lane, ccomp, t);
+          CP.anchorX = sv[lane].x; CP.anchorFy = sv[lane].fy; CP.leadDone = true; CP.nextDue = t;
+          return CP;
+        }
+      }
+    }
+
+    // Regular push. Same roll as the simple offence, boosted in the endgame. Its cards must be affordable now.
+    if (t < this.plannedCooldownUntil) return null;
+    var mult = this.game.elixirMult || 1;
+    var aggMult = mult >= 3 ? el.tripleMult : mult >= 2 ? el.doubleMult : 1;
+    var agg = clamp(oc.aggression * aggMult + (eg.active ? this.cfg.endgame.aggression : 0), 0, 1);
+    if (!(this.rng() < agg * 0.5)) return null;
+    if (!eg.active && ctx.adv < pc.advantageGate) return null;
+    // The defence reserve stays back unless the bot is at the cap, the endgame is on, or it is double elixir.
+    var reserve = eg.active || me.elixir >= el.maxHold ? 0 : el.defenseReserve;
+    var comp = this.buildComp(me, me.elixir + slack - reserve, {});
+    if (!comp) return null;
+    var lane2 = eg.active ? this.pickLane(eTowers, -1, 'weakest') : this.pickLane(eTowers, -1);
+    return this.newPlan('push', lane2, comp, t);
+  };
+
+  Bot.prototype.endPlan = function (P, t, ctx) {
+    P.done = true;
+    this.plannedCooldownUntil = t + (ctx.eg.active ? this.cfg.offense.pushCooldown * 0.5 : this.cfg.offense.pushCooldown);
+    return null;
+  };
+
+  Bot.prototype.planPlay = function (me, hIdx, cost, fx, fy, P, role) {
+    return {
+      kind: 'troop', hIdx: hIdx, cost: cost, fx: fx, fy: fy,
+      tank: role === 'lead', support: role === 'support', plan: P.kind,
+      reason: P.kind + ' ' + role + ' lane ' + P.lane,
+    };
+  };
+
+  // Best damage spell on the enemy cluster near the anchor. Uses the value check in spellPlay.
+  Bot.prototype.planSpell = function (me, anchor, enemies) {
+    var self = this, best = null, range = this.cfg.plan.spellRange;
+    var near = enemies.filter(function (e) { return dist(e.x, e.y, anchor.x, anchor.y) <= range; });
+    if (!near.length) return null;
+    me.hand.forEach(function (cid, hIdx) {
+      var R = self.R(cid);
+      if (!R || !R.spell || R.barrel || !R.damageSpell || R.cost > me.elixir + 1e-9) return;
+      var sp = self.spellPlay(R, hIdx, near);
+      if (sp && (!best || sp.score > best.score)) {
+        sp.reason = 'push spell lane'; sp.plan = 'push';
+        best = sp;
+      }
+    });
+    return best;
+  };
+
+  // Damage spell on an enemy tower that is out of elixir to answer. Biggest tower damage first.
+  Bot.prototype.towerSpell = function (me, tw) {
+    var self = this, best = null;
+    me.hand.forEach(function (cid, hIdx) {
+      var R = self.R(cid);
+      if (!R || !R.spell || R.barrel || R.towerDamage <= 0 || R.cost > me.elixir + 1e-9) return;
+      if (!best || R.towerDamage > best.dmg) best = { hIdx: hIdx, R: R, dmg: R.towerDamage };
+    });
+    if (!best) return null;
+    return {
+      kind: 'spell', hIdx: best.hIdx, x: tw.x, y: tw.y, cost: best.R.cost, exactSpot: true,
+      reason: 'endgame tower ' + best.R.id, towerSpell: true,
+    };
+  };
+
+  // Advances the active plan one step. Returns an option to play, or null.
+  Bot.prototype.advancePlan = function (P, me, myUnits, eTowers, enemies, t, ctx) {
+    var self = this, cfg = this.cfg, oc = cfg.offense, pc = cfg.plan;
+    var L = P.lane;
+    var pr = eTowers.filter(function (tw) { return tw.towerType === 'princess' && laneOf(tw.x) === L; })[0];
+    var king = eTowers.filter(function (tw) { return tw.towerType === 'king'; })[0];
+    var pocket = !pr && oc.pocketUsage !== 'never';
+    if (t - P.start > oc.pushTimeout) return this.endPlan(P, t, ctx);
+    if (!P.cards.length && P.leadDone) return this.endPlan(P, t, ctx);
+
+    // Lead stage: drop the lead when it is affordable. The lead must still be in hand.
+    if (!P.leadDone) {
+      var lead = P.cards[0];
+      var li = me.hand.indexOf(lead.id);
+      if (li < 0) return this.endPlan(P, t, ctx);
+      if (me.elixir + 1e-9 < lead.cost) return null;
+      var LR = this.R(lead.id);
+      var spot = this.leadSpot(LR, L, pocket);
+      P.cards.shift();
+      P.leadDone = true; P.leadAt = t; P.leadHeavy = LR.tank || LR.winCon;
+      P.anchorX = spot.fx; P.anchorFy = spot.fy;
+      // Support lands `supportGapTime` behind the lead: it waits for the time gap between their arrivals.
+      var sup = P.cards[0];
+      if (sup) {
+        var su = (CR.UNITS[this.R(sup.id).unitId] || {}).speed || 1;
+        var etaLead = this.etaTo(spot.fx, spot.fy, L, spot.speed);
+        var etaSup = this.etaTo(spot.fx, spot.fy - oc.supportGap, L, su);
+        P.nextDue = t + Math.max(0, etaLead - etaSup + pc.supportGapTime);
+      }
+      return this.planPlay(me, li, lead.cost, spot.fx, spot.fy, P, 'lead');
+    }
+
+    var heavies = myUnits.filter(function (u) { return laneOf(u.x) === L && self.isHeavy(u); });
+    // The heavy lead is gone: the push ends, its queued cards stay in hand.
+    if (P.leadHeavy && !heavies.length && t - P.leadAt > 0.5) return this.endPlan(P, t, ctx);
+
+    var anchor = heavies.length
+      ? { x: heavies[0].x, y: heavies[0].y, fy: fyOf(this.team, heavies[0].y) }
+      : { x: P.anchorX, y: realY(this.team, P.anchorFy), fy: P.anchorFy };
+    var eg = ctx.eg;
+
+    // Barrel onto the lane princess once the lead is down, as the simple offence does.
+    if (pr) {
+      var barrel = this.bestInHand(me, function (R) { return R.barrel && R.cost <= me.elixir; });
+      if (barrel) {
+        return { kind: 'spell', hIdx: barrel.idx, x: pr.x, y: pr.y, cost: barrel.R.cost, exactSpot: true, reason: 'barrel lane ' + L, plan: P.kind };
+      }
+    }
+
+    // Spell on a cluster forming around the lead (value check inside spellPlay).
+    var sp = this.planSpell(me, anchor, enemies);
+    if (sp) { sp.plan = P.kind; return sp; }
+
+    // Tower spell on the lane princess (or the king) when the push has arrived at it, or in the endgame or when the
+    // opponent is nearly out of elixir.
+    var tgt = pr || king;
+    if (tgt && (eg.active && ctx.oppEl < cfg.endgame.spellBelow || (pr && dist(anchor.x, anchor.y, pr.x, pr.y) <= pc.towerSpellRange))) {
+      var ts = this.towerSpell(me, tgt);
+      if (ts) { ts.plan = P.kind; return ts; }
+    }
+
+    // Queued cards: each goes out at its due time, behind the lead.
+    if (P.cards.length && t >= P.nextDue) {
+      var c = P.cards[0];
+      var idx = me.hand.indexOf(c.id);
+      if (idx < 0) { P.cards.shift(); return null; }
+      if (me.elixir + 1e-9 < c.cost) return null;
+      P.cards.shift();
+      P.nextDue = t + 1.0;
+      var fy = anchor.fy - oc.supportGap;
+      return this.planPlay(me, idx, c.cost, anchor.x, fy, P, 'support');
+    }
+    return null;
+  };
+
+  // Plan step for the bot. One plan runs at a time; a new one starts when none is active.
+  Bot.prototype.planOffence = function (me, myUnits, eTowers, enemies, t, ctx) {
+    if (!this.plans.length) {
+      var P = this.planStart(me, myUnits, eTowers, t, ctx);
+      if (P) this.plans.push(P);
+    }
+    var opt = null;
+    for (var i = 0; i < this.plans.length && !opt; i++) {
+      opt = this.advancePlan(this.plans[i], me, myUnits, eTowers, enemies, t, ctx);
+    }
+    if (opt) opt.endgame = ctx.eg.active;
+    this.plans = this.plans.filter(function (Q) { return !Q.done; });
+    return opt;
   };
 
   // Spawn-spot search: the ideal frame point first, then a spiral of nearby points.
@@ -809,11 +1176,14 @@ var CR = (globalThis.CR = globalThis.CR || {});
       y = clamp(opt.y, 0.2, H - 0.2);
       if (!g.canDeploy(team, opt.hIdx, x, y)) return false;
     } else if (opt.kind === 'troop') {
-      var s = this.spot(
-        opt.hIdx,
-        opt.fx + (this.rng() * 2 - 1) * jit,
-        opt.fy + (this.rng() * 2 - 1) * jit
-      );
+      var fx0 = opt.fx + (this.rng() * 2 - 1) * jit;
+      var fy0 = opt.fy + (this.rng() * 2 - 1) * jit;
+      // Sloppy play: an occasional drop lands a few tiles off the planned spot.
+      if (cfg.timing.misplaceChance > 0 && this.rng() < cfg.timing.misplaceChance) {
+        fx0 += (this.rng() * 2 - 1) * 3.5;
+        fy0 += (this.rng() * 2 - 1) * 3.5;
+      }
+      var s = this.spot(opt.hIdx, fx0, fy0);
       if (!s) return false;
       x = s.x;
       y = s.y;
@@ -843,6 +1213,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
     if (opt.forced) st.forcedPlays++;
     if (opt.idle) st.idlePlays++;
     if (opt.random) st.randomPlays++;
+    if (opt.plan) {
+      st.planPlays++;
+      if (R.spell) st.planSpells++;
+    }
+    if (opt.endgame) st.endgamePlays++;
+    if (opt.towerSpell) st.endgameTowerSpells++;
 
     this.nextPlayT = t + this.rand(cfg.timing.actionCooldown * 0.85, cfg.timing.actionCooldown * 1.15);
     this.recentPlays.push(t);

@@ -255,6 +255,7 @@ function simulate(comps, seed, matchIndex, hook) {
     crowns: [game.players[0].crowns, game.players[1].crowns],
     duration: game.time,
     overtime: sawOT,
+    towersDown: towers.filter(function (tw) { return tw.dead || tw.hp <= 0; }).length,
     leak: leak, dmgDealt: dmgDealt, cards: cards, spent: spent,
   };
 }
@@ -275,6 +276,7 @@ function playMatch(A, B, seed, matchIndex) {
     reason: r.reason,
     duration: round2(r.duration),
     overtime: r.overtime,
+    towersDown: r.towersDown,
     crownsFor: r.crowns[aTeam],
     crownsAgainst: r.crowns[bTeam],
     towerDmgFor: round1(r.dmgDealt[aTeam]),
@@ -286,7 +288,9 @@ function playMatch(A, B, seed, matchIndex) {
     spentFor: r.spent[aTeam],
     spentAgainst: r.spent[bTeam],
   };
-  if (r.ctl[aTeam].stats) rec.botStats = copyStats(r.ctl[aTeam].stats);
+  // Bots carry stats; the computer opponent (CR.AI) keeps its bot's stats.
+  var st = r.ctl[aTeam].stats || (r.ctl[aTeam].bot && r.ctl[aTeam].bot.stats);
+  if (st) rec.botStats = copyStats(st);
   return rec;
 }
 
@@ -321,6 +325,7 @@ function summarise(recs) {
     cardsPerMin: minutes ? recs.reduce(function (s, r) { return s + r.cardsFor; }, 0) / minutes : 0,
     avgLength: mean(recs.map(function (r) { return r.duration; })),
     overtimeRate: n ? ot / n : 0,
+    towersDown: mean(recs.map(function (r) { return r.towersDown; })),
   };
   var bs = recs.filter(function (r) { return r.botStats; });
   if (bs.length) {
@@ -343,6 +348,7 @@ function matchupRows(sum) {
     cpm: f1(sum.cardsPerMin),
     len: mmss(sum.avgLength),
     ot: pct(sum.overtimeRate),
+    td: f2(sum.towersDown),
   }];
 }
 
@@ -353,12 +359,15 @@ var MATCHUP_COLS = [
   { key: 'tdf', label: 'Tower dmg for', align: 'r' }, { key: 'tda', label: 'Tower dmg vs', align: 'r' },
   { key: 'leak', label: 'Leak s', align: 'r' }, { key: 'cpm', label: 'Cards/min', align: 'r' },
   { key: 'len', label: 'Avg length', align: 'r' }, { key: 'ot', label: 'OT rate', align: 'r' },
+  { key: 'td', label: 'Towers down', align: 'r' },
 ];
 
 var BOT_STAT_KEYS = [
   'cardsPlayed', 'elixirSpent', 'leakSeconds', 'spellsCast', 'spellValueEst', 'spellValueHit',
   'spellUnitsHit', 'spellKills', 'defenses', 'kitePlays', 'pushesStarted', 'baitPlays', 'supportPlays',
   'forcedPlays', 'idlePlays', 'randomPlays', 'towerDamage',
+  'punishPushes', 'counterPushes', 'planPlays', 'planSpells', 'endgamePlays', 'endgameTowerSpells',
+  'oppElixir', 'elixirAdv',
 ];
 
 function botStatsTable(stats) {
