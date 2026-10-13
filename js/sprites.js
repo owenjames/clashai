@@ -428,7 +428,11 @@ var CR = (globalThis.CR = globalThis.CR || {});
       for (var k in o) {
         // An effect may be a list of layers, each a normal entry.
         if (Array.isArray(o[k])) o[k].forEach(scan);
-        else scan(o[k]);
+        else {
+          scan(o[k]);
+          // Team variants of one building: { team0: entry, team1: entry }.
+          if (o[k] && typeof o[k] === 'object') { scan(o[k].team0); scan(o[k].team1); }
+        }
       }
     });
     var towers = m.towers || {};
@@ -600,15 +604,19 @@ var CR = (globalThis.CR = globalThis.CR || {});
         .catch(function () { return false; });
     },
     // Manifest art for a unit or building, or null. The renderer falls back to baked troop art, then the token.
-    unitArt: function (unitId) {
-      return cached('unit|' + unitId, function () {
-        var m = manifest.buildings && manifest.buildings[unitId] ? manifest.buildings[unitId] : (manifest.units || {})[unitId];
+    // team (0 or 1) picks a building's team variant; without it team 0 is used.
+    unitArt: function (unitId, team) {
+      var b = manifest.buildings && manifest.buildings[unitId];
+      var teamed = !!(b && (b.team0 || b.team1));
+      return cached('unit|' + unitId + (teamed ? '|' + (team === 1 ? 1 : 0) : ''), function () {
+        var m = b || (manifest.units || {})[unitId];
+        if (teamed) m = b[team === 1 ? 'team1' : 'team0'] || b.team0 || b.team1;
         return fromEntry(m);
       });
     },
     // Unit visual for the token placeholder path (manifest art or token).
-    unit: function (unitId) {
-      return Sprites.unitArt(unitId) || cached('ph|unit|' + unitId, function () {
+    unit: function (unitId, team) {
+      return Sprites.unitArt(unitId, team) || cached('ph|unit|' + unitId, function () {
         return placeholderVisual('unit', unitId);
       });
     },

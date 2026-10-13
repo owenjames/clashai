@@ -652,7 +652,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
   // Art for a unit drawn at radius r: manifest art first, then baked troop art, then the token.
   PixiRenderer.prototype._visualFor = function (unitId, team, r) {
-    var art = CR.Sprites.unitArt(unitId);
+    var art = CR.Sprites.unitArt(unitId, team);
     if (art) return art;
     return CR.Sprites.troop(unitId, team, 1.4 * (r / 0.5), this._pxPerTile) || CR.Sprites.unit(unitId);
   };
@@ -1505,7 +1505,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
       if (!isFinite(ang)) ang = 0;
       s.position.set(p.x, p.y);
       s.width = s.height = vis.h;
-      s.rotation = p.kind === 'arrow' || p.kind === 'spear' || p.kind === 'bullet' ? ang : 0;
+      // Projectile art points right, so every kind faces its direction of travel.
+      s.rotation = ang;
       s.zIndex = p.y + 0.5 + (p.air ? 64 : 0);
 
       var tr = this._trail.get(p);

@@ -418,18 +418,66 @@ def build_single(chars, source, anims, target_px, path, flip=False, tint=None, r
 
 
 def build_buildings(chars, amap):
-    """Buildings: one image each, scaled so the body is heightTiles tall for a radius 0.5 unit."""
+    """Buildings: one image each, scaled so the body is heightTiles tall for a radius 0.5 unit.
+    flag: true bakes a team banner into team0 and team1 variants, stored as {team0: entry, team1: entry}."""
     entries = {}
     radii = unit_radii()
     for bid, spec in amap.get("buildings", {}).items():
-        path = os.path.join(ART, "buildings", bid + ".png")
-        anchor, cell, _ = build_single(chars, spec["source"], spec.get("anims", {"idle": "seq"}), BUILDING_PX,
-                                       path, False, spec.get("tint"), spec.get("recolor"))
+        anims = spec.get("anims", {"idle": "seq"})
         vis_h = spec["heightTiles"] * 0.5 / radii[bid]
-        entries[bid] = {"src": rel_art(path), "anchor": [round(anchor[0], 3), anchor[1]],
-                        "scale": round(vis_h, 4), "flipDefault": False, "tintable": False}
-        print("  building %-12s body %.2f tiles" % (bid, spec["heightTiles"]))
+        if spec.get("flag"):
+            per_team = {}
+            for team in (0, 1):
+                path = os.path.join(ART, "buildings", "%s_team%d.png" % (bid, team))
+                states = read_states(chars, spec["source"], anims, False)
+                cells, anchor, cell, _ = normalize({"idle": states["idle"]}, BUILDING_PX, "height",
+                                                   spec.get("tint"), 0, ref="union")
+                img = add_team_flag(cells["idle"][0], team)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                img.save(path, optimize=True)
+                per_team["team%d" % team] = {"src": rel_art(path), "anchor": [round(anchor[0], 3), anchor[1]],
+                                             "scale": round(vis_h, 4), "flipDefault": False, "tintable": False}
+            entries[bid] = per_team
+        else:
+            path = os.path.join(ART, "buildings", bid + ".png")
+            anchor, cell, _ = build_single(chars, spec["source"], anims, BUILDING_PX,
+                                           path, False, spec.get("tint"), spec.get("recolor"))
+            entries[bid] = {"src": rel_art(path), "anchor": [round(anchor[0], 3), anchor[1]],
+                            "scale": round(vis_h, 4), "flipDefault": False, "tintable": False}
+        print("  building %-12s body %.2f tiles%s" % (bid, spec["heightTiles"], " (team flags)" if spec.get("flag") else ""))
     return entries
+
+
+PROJ_PX = 128        # projectile texture size (square; the renderer draws it at vis.h tiles)
+TEAM_FLAG = {0: "free-simple-summer-top-down-vector-tileset/PNG/Top-Down Simple Summer_Prop - Blue Banner.png",
+             1: "free-simple-summer-top-down-vector-tileset/PNG/Top-Down Simple Summer_Prop - Red Banner.png"}
+
+
+def build_projectiles(chars, amap):
+    """One square picture per projectile kind, pointing right. The renderer draws a single frame."""
+    entries = {}
+    for kind, spec in amap.get("projectiles", {}).items():
+        states = read_states(chars, spec["source"], {"idle": "seq"}, False, n=8)
+        frames = states["idle"]
+        cells, _, cell, _ = normalize({"idle": [frames[len(frames) // 2]]}, PROJ_PX, "square",
+                                      spec.get("tint"), spec.get("hue", 0))
+        path = os.path.join(ART, "projectiles", kind + ".png")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        cells["idle"][0].save(path, optimize=True)
+        entries[kind] = {"src": rel_art(path), "anchor": [0.5, 0.5], "scale": spec.get("scale", 0.6),
+                         "tintable": False}
+        print("  projectile %-10s scale %.2f tiles" % (kind, spec.get("scale", 0.6)))
+    return entries
+
+
+def add_team_flag(img, team):
+    """Composite a small team banner on the top-right of a building picture (the banner is a prop)."""
+    banner = Image.open(os.path.join(SRC, TEAM_FLAG[team])).convert("RGBA")
+    k = img.height * 0.42 / float(banner.height)
+    banner = banner.resize((max(1, round(banner.width * k)), max(1, round(banner.height * k))), Image.LANCZOS)
+    out = img.copy()
+    out.alpha_composite(banner, (img.width - banner.width - int(img.width * 0.02), int(img.height * 0.02)))
+    return out
 
 
 def build_effects(chars, amap):
@@ -438,7 +486,7 @@ def build_effects(chars, amap):
         items = []
         for k, spec in enumerate(spec_list):
             states = read_states(chars, spec["source"], {"idle": "seq"}, False, n=spec.get("frames", 8))
-            cells, _, cell, _ = normalize(states, VFX_PX, "square", spec.get("tint"))
+            cells, _, cell, _ = normalize(states, VFX_PX, "square", spec.get("tint"), spec.get("hue", 0))
             name = etype if len(spec_list) == 1 else "%s_%d" % (etype, k)
             path = os.path.join(ART, "vfx", name + ".png")
             rows = write_sheet(cells, cell, path)
@@ -486,10 +534,13 @@ def cmd_process(chars):
     towers = build_towers(chars, amap)
     print("buildings:")
     buildings = build_buildings(chars, amap)
+    print("projectiles:")
+    projectiles = build_projectiles(chars, amap)
     print("effects:")
     effects = build_effects(chars, amap)
     arena = build_arena()
-    result = {"units": units, "towers": towers, "buildings": buildings, "effects": effects, "arena": arena}
+    result = {"units": units, "towers": towers, "buildings": buildings, "projectiles": projectiles,
+              "effects": effects, "arena": arena}
     with open(os.path.join(ART, "built.json"), "w") as fh:
         json.dump(result, fh, indent=1, sort_keys=True)
     total = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fn in os.walk(ART) for f in fn)
@@ -549,6 +600,7 @@ def cmd_manifest():
     manifest["units"] = OrderedDict(built["units"])
     manifest["towers"] = OrderedDict(built["towers"])
     manifest["buildings"] = OrderedDict(built.get("buildings", {}))
+    manifest["projectiles"] = OrderedDict(built.get("projectiles", {}))
     manifest["effects"] = OrderedDict(built["effects"])
     if built.get("arena"):
         manifest["arena"] = built["arena"]
@@ -655,9 +707,48 @@ def build_arena():
     return {"src": rel_art(path), "pad": P}
 
 
+def cmd_vfx():
+    """Contact sheet of the effects (one middle frame per layer) and the projectiles, labelled."""
+    with open(os.path.join(ART, "manifest.json")) as fh:
+        man = json.load(fh)
+    tiles = []
+    for etype, layers in man.get("effects", {}).items():
+        for k, layer in enumerate(layers):
+            sh = layer.get("sheet")
+            if not sh:
+                continue
+            im = Image.open(os.path.join(ROOT, sh["src"])).convert("RGBA")
+            n = max(c for _, c in sh["rows"].values())
+            fw = sh["frameW"]
+            mid = min(n - 1, n // 2)
+            frame = im.crop((mid * fw, 0, mid * fw + fw, sh["frameH"]))
+            tiles.append(("fx %s%s" % (etype, "" if len(layers) == 1 else "[%d]" % k), frame))
+    for kind, entry in man.get("projectiles", {}).items():
+        tiles.append(("proj %s" % kind, Image.open(os.path.join(ROOT, entry["src"])).convert("RGBA")))
+    cell, cols = 150, 8
+    rows = (len(tiles) + cols - 1) // cols
+    out = Image.new("RGB", (cols * cell, rows * (cell + 22) + 28), (92, 150, 70))
+    d = ImageDraw.Draw(out)
+    d.text((8, 8), "VFX and projectiles (middle frame of each sequence, on grass)", fill=(255, 255, 255), font=load_font(13))
+    font = load_font(11)
+    for i, (label, im) in enumerate(tiles):
+        x = (i % cols) * cell
+        y = 28 + (i // cols) * (cell + 22)
+        bb = im.getchannel("A").getbbox()
+        if bb:
+            im = im.crop(bb)
+        k = min((cell - 12) / float(im.width), (cell - 12) / float(im.height))
+        im = im.resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)
+        out.paste(im, (x + (cell - im.width) // 2, y + (cell - im.height) // 2), im)
+        d.text((x + 4, y + cell + 2), label[:24], fill=(255, 255, 255), font=font)
+    os.makedirs(SHEETS, exist_ok=True)
+    out.save(os.path.join(SHEETS, "vfx.png"), optimize=True)
+    print("wrote", os.path.join(SHEETS, "vfx.png"), "(%d items)" % len(tiles))
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["inventory", "process", "manifest", "roster", "all"])
+    ap.add_argument("command", choices=["inventory", "process", "manifest", "roster", "vfx", "all"])
     args = ap.parse_args(argv)
     chars = discover()
     if args.command in ("inventory", "all"):
@@ -668,6 +759,8 @@ def main(argv):
         cmd_manifest()
     if args.command in ("roster", "all"):
         cmd_roster(chars)
+    if args.command in ("vfx", "all"):
+        cmd_vfx()
     return 0
 
 

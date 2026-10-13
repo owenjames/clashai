@@ -298,7 +298,7 @@
         "attack": "attack",
         "death": "dying"
       },
-      "heightTiles": 0.9,
+      "heightTiles": 0.5,
       "why": "Grey bat with wings, flies. Small like the card."
     },
     "babydragon": {
@@ -309,7 +309,7 @@
         "attack": "attack",
         "death": "dying"
       },
-      "heightTiles": 1.6,
+      "heightTiles": 1.4,
       "why": "Red winged dragon, flies. Flipped: the source faces left.",
       "flip": true
     },
@@ -321,7 +321,7 @@
         "attack": "attack",
         "death": "dying"
       },
-      "heightTiles": 1.8,
+      "heightTiles": 1.0,
       "why": "Orange flying eye, the nearest to a balloon."
     },
     "minion": {
@@ -332,19 +332,20 @@
         "attack": "attack",
         "death": "dying"
       },
-      "heightTiles": 1.0,
+      "heightTiles": 0.8,
       "why": "Flying wasp-like minion. Imp art not in the packs."
     },
     "lavahound": {
-      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_6",
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_5",
       "anims": {
         "idle": "idle",
-        "walk": "walking",
+        "walk": "fly",
         "attack": "attack",
         "death": "dying"
       },
-      "heightTiles": 2.2,
-      "why": "Rock beast with orange lava veins. Walks in art, flies in game (flyer flag is in the engine)."
+      "heightTiles": 1.1,
+      "hue": 15,
+      "why": "Flying orange creature turned red-orange: the only flyer left in the packs; balloon uses the same base."
     },
     "lavapup": {
       "source": "free-monster-enemy-sprites-for-tower-defense/Monster_7",
@@ -354,7 +355,7 @@
         "attack": "attack",
         "death": "dying"
       },
-      "heightTiles": 1.0,
+      "heightTiles": 0.7,
       "why": "Red horned blob, a small lava creature."
     },
     "miner": {
@@ -367,21 +368,148 @@
       },
       "heightTiles": 1.3,
       "why": "Helmeted digger with a slab. Closest to a miner."
+    },
+    "firespirit": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Fire Ball/PNG::Fire_Ball_Frame",
+      "anims": {
+        "idle": "seq"
+      },
+      "heightTiles": 0.8,
+      "why": "Looping fireball as the fire spirit."
+    },
+    "icespirit": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Water Ball/PNG::Water_Ball_Frame",
+      "anims": {
+        "idle": "seq"
+      },
+      "heightTiles": 0.8,
+      "tint": "#d8f4ff",
+      "why": "Water orb tinted ice."
+    },
+    "electrospirit": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Water Ball/PNG::Water_Ball_Frame",
+      "anims": {
+        "idle": "seq"
+      },
+      "heightTiles": 0.8,
+      "hue": 225,
+      "why": "Water orb turned yellow (hue rotation) for the electric spirit."
     }
   },
   "unmapped": {
-    "hogrider": "no boar or rider art in the packs",
-    "icespirit": "spirit: ice orb art is for projectiles",
-    "electrospirit": "spirit: no electric spirit art",
-    "firespirit": "spirit: fire orb art is for projectiles"
+    "hogrider": "no boar or pig in the monster packs; a mounted rider would need a composite, left procedural"
   },
   "effects": {
+    "arrows": [
+      {
+        "source": "free-water-and-fire-magic-sprite-vector-pack/Water Arrow/PNG::Water_Arrow_Frame",
+        "fps": 16,
+        "scale": 1.0,
+        "why": "Rain of wood arrows.",
+        "hue": 200
+      }
+    ],
+    "fireball": [
+      {
+        "source": "free-water-and-fire-magic-sprite-vector-pack/Fire Ball/PNG::Fire_Ball_Frame",
+        "fps": 14,
+        "scale": 1.1,
+        "why": "Fireball impact."
+      }
+    ],
+    "rocket": [
+      {
+        "source": "free-water-and-fire-magic-sprite-vector-pack/Fire Spell/PNG::Fire_Spell_Frame",
+        "fps": 14,
+        "scale": 1.2,
+        "why": "Rocket blast."
+      },
+      {
+        "source": "free-animated-explosion-sprite-pack/PNG/Explosion_5::Explosion",
+        "fps": 14,
+        "scale": 0.9,
+        "why": "Rocket blast flash."
+      }
+    ],
+    "zap": [
+      {
+        "source": "free-water-effects-sprite-pack/Water3/Png::water30003",
+        "fps": 16,
+        "scale": 0.9,
+        "blend": "add",
+        "hue": 225,
+        "why": "Electric ring, yellow."
+      }
+    ],
+    "chain": [
+      {
+        "source": "free-water-effects-sprite-pack/Water3/Png::water30003",
+        "fps": 16,
+        "scale": 0.7,
+        "blend": "add",
+        "hue": 225,
+        "why": "Electric chain hop."
+      }
+    ],
+    "lightning": [
+      {
+        "source": "free-water-effects-sprite-pack/Water4/Png::water40003",
+        "fps": 14,
+        "scale": 1.6,
+        "blend": "add",
+        "hue": 225,
+        "why": "Lightning strike, yellow spikes."
+      }
+    ],
+    "freeze": [
+      {
+        "source": "free-water-effects-sprite-pack/Water4/Png::water40003",
+        "fps": 12,
+        "scale": 1.2,
+        "why": "Ice burst.",
+        "tint": "#e6fbff"
+      }
+    ],
+    "poison": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Poisonous Smoke/PNG::Posionous_Smoke_Frame",
+        "fps": 8,
+        "scale": 1.4,
+        "alpha": 0.8,
+        "why": "Green poison cloud.",
+        "tint": "#b5ff9a"
+      }
+    ],
+    "towerDown": [
+      {
+        "source": "free-animated-explosion-sprite-pack/PNG/Explosion_8::Explosion",
+        "fps": 14,
+        "scale": 1.3,
+        "why": "Tower explosion."
+      },
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke/PNG::Smoke_Frame",
+        "fps": 10,
+        "scale": 1.8,
+        "alpha": 0.8,
+        "why": "Smoke after a tower falls."
+      }
+    ],
+    "deploy": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke/PNG::Smoke_Frame",
+        "fps": 10,
+        "scale": 1.0,
+        "alpha": 0.7,
+        "why": "Deploy puff."
+      }
+    ],
     "splash": [
       {
         "source": "free-cartoon-smoke-effects-asset-pack/Smoke Explosion/PNG::Smoke_Explosion_Frame",
         "fps": 14,
         "scale": 1.3,
-        "why": "Smoke burst for splash damage."
+        "why": "Splash burst (log, earthquake)."
       }
     ],
     "tornado": [
@@ -390,7 +518,7 @@
         "fps": 14,
         "scale": 1.4,
         "alpha": 0.8,
-        "why": "Swirling smoke for tornado."
+        "why": "Swirling smoke."
       }
     ],
     "rage": [
@@ -399,7 +527,7 @@
         "fps": 10,
         "scale": 1.2,
         "alpha": 0.7,
-        "why": "Soft spell smoke for the rage aura."
+        "why": "Rage aura smoke."
       }
     ],
     "death": [
@@ -408,7 +536,7 @@
         "fps": 12,
         "scale": 1.0,
         "alpha": 0.8,
-        "why": "Puff when a unit dies."
+        "why": "Death puff."
       }
     ],
     "spawn": [
@@ -417,7 +545,7 @@
         "fps": 12,
         "scale": 0.9,
         "alpha": 0.7,
-        "why": "Puff when a unit lands."
+        "why": "Spawn puff (goblin barrel, graveyard)."
       }
     ],
     "hit": [
@@ -491,27 +619,84 @@
     "cannon": {
       "source": "file:free-stone-tower-game-assets/PNG/3.png",
       "heightTiles": 1.3,
-      "why": "Grey stone base with two pillars: a turret."
+      "why": "Grey stone base with two pillars: a turret.",
+      "flag": true
     },
     "infernotower": {
       "source": "file:free-stone-tower-game-assets/PNG/12.png",
       "heightTiles": 1.6,
-      "why": "Purple base with a fire flame: reads as an inferno."
+      "why": "Purple base with a fire flame: reads as an inferno.",
+      "flag": true
     },
     "tesla": {
       "source": "file:free-stone-tower-game-assets/PNG/25.png",
       "heightTiles": 1.5,
-      "why": "Grey stone tower with pillars: tesla-coil stand-in."
+      "why": "Grey stone tower with pillars: tesla-coil stand-in.",
+      "flag": true
     },
     "tombstone": {
       "source": "file:free-stone-tower-game-assets/PNG/27.png",
       "heightTiles": 1.0,
-      "why": "Round-topped stone post: loose fit for a gravestone."
+      "why": "Round-topped stone post: loose fit for a gravestone.",
+      "flag": true
     },
     "goblinhut": {
       "source": "file:free-simple-summer-top-down-vector-tileset/PNG/Top-Down Simple Summer_Prop - House.png",
       "heightTiles": 1.6,
-      "why": "Wooden village house with a roof."
+      "why": "Wooden village house with a roof.",
+      "flag": true
+    }
+  },
+  "projectiles": {
+    "arrow": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Water Arrow/PNG::Water_Arrow_Frame",
+      "scale": 0.9,
+      "why": "Water arrow rotated to wood tones: arrow shape with a fin.",
+      "hue": 200
+    },
+    "spear": {
+      "source": "free-staves-2d-weapon-pack/PNG/Staves_3::frames",
+      "scale": 1.0,
+      "why": "Pointed red staff tip, reads as a spear."
+    },
+    "bullet": {
+      "source": "file:free-stone-tower-game-assets/PNG/40.png",
+      "tint": "#ffe27a",
+      "scale": 0.3,
+      "why": "Small dark ball washed yellow: a musket shot."
+    },
+    "cannonball": {
+      "source": "file:free-stone-tower-game-assets/PNG/40.png",
+      "scale": 0.5,
+      "why": "Dark metal ball with a highlight."
+    },
+    "bomb": {
+      "source": "file:free-stone-tower-game-assets/PNG/49.png",
+      "scale": 0.55,
+      "why": "Spiked iron ball."
+    },
+    "fire": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Fire Ball/PNG::Fire_Ball_Frame",
+      "scale": 0.6,
+      "why": "Fireball, middle frame."
+    },
+    "magic": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Water Ball/PNG::Water_Ball_Frame",
+      "hue": 90,
+      "scale": 0.6,
+      "why": "Water orb turned purple for the magic orb."
+    },
+    "ice": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Water Ball/PNG::Water_Ball_Frame",
+      "tint": "#9fe6ff",
+      "scale": 0.55,
+      "why": "Water orb tinted pale ice."
+    },
+    "goo": {
+      "source": "free-water-and-fire-magic-sprite-vector-pack/Water Ball/PNG::Water_Ball_Frame",
+      "hue": 280,
+      "scale": 0.5,
+      "why": "Water orb turned green for goo."
     }
   }
 }
