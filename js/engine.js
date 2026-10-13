@@ -188,6 +188,9 @@ var CR = (globalThis.CR = globalThis.CR || {});
       avoid: null, // { id, side, until }: obstacle steering side kept for a moment
       stallT: 0, // seconds steering without headway
       stepX: null, // position at the start of the last walk step
+      lastDir: null, // unit direction of the last local steer
+      crossing: false, // committed to crossing a bridge
+      knockT: 0, // seconds left of a knockback
       escapeT: 0, // seconds left of a wedge escape
       escapeDir: null,
       stepY: null,
@@ -335,6 +338,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     }
     e.x += (dx / d) * amount;
     e.y += (dy / d) * amount;
+    e.knockT = KNOCK_TIME;
     e.locked = false;
     e.charging = false;
     e.chargeDist = 0;
@@ -497,13 +501,16 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var side = sideOf(e.y);
     if (side === gSide) {
       e.bridgeX = null;
+      e.crossing = false;
       return { x: gx, y: gy };
     }
     if (e.bridgeX === null) e.bridgeX = chooseBridgeX(e, gx, gy, side);
     var entY = side === 0 ? BANK_BOTTOM : BANK_TOP;
     var exY = side === 0 ? BANK_TOP : BANK_BOTTOM;
-    // Once at the entrance, commit to the crossing (one-way switch avoids oscillating at the bank).
-    if (dist(e, { x: e.bridgeX, y: entY }) <= 0.6) {
+    // Once at the entrance, commit to the crossing. The commit is one-way: testing the distance again
+    // each step makes a unit flip between the entrance and the exit at the 0.6 boundary and stall there.
+    if (e.crossing || dist(e, { x: e.bridgeX, y: entY }) <= 0.6) {
+      e.crossing = true;
       return { x: e.bridgeX, y: exY };
     }
     return { x: e.bridgeX, y: entY };
@@ -514,6 +521,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
   // (it never pushes into the obstacle, so it does not crawl along it). The side is kept for
   // AVOID_HOLD seconds so the unit does not dither between the two.
   var AVOID_SKIN = 0.1;
+  var KNOCK_TIME = 0.6; // a knocked-back unit is not walking for this long
   var AVOID_HOLD = 1.5;
   var ESCAPE_TIME = 0.5; // seconds a wedged unit steps straight off the nearest obstacle
   var STALL_TIME = 0.6; // seconds of no headway before a steering unit flips its side
@@ -576,7 +584,51 @@ var CR = (globalThis.CR = globalThis.CR || {});
       else side = px * (W / 2 - e.x) >= 0 ? 1 : -1;
       e.avoid = { id: best.en.id, side: side, until: game.time + AVOID_HOLD };
     }
-    return alongEdge(e, steerVector(side, px, py, gtx, gty));
+    return localSteer(game, e, ux, uy, skip) || alongEdge(e, steerVector(side, px, py, gtx, gty));
+  }
+
+  function onBridgeX(x, r) {
+    for (var i = 0; i < ARENA.BRIDGES.length; i++) {
+      if (Math.abs(x - ARENA.BRIDGES[i].x) <= ARENA.BRIDGES[i].halfWidth - r) return true;
+    }
+    return false;
+  }
+
+  // Local planner for a blocked step. Samples 24 directions, keeps those whose short step stays clear of every
+  // other tower or building, and takes the one that makes the most progress toward the goal, preferring the
+  // direction the unit was already taking. When no direction is clear it takes the one that moves away from the
+  // obstacles, so a wedged unit climbs out instead of pushing back in.
+  function localSteer(game, e, gux,guy, skip) {
+    var best = null;
+    var bestScore = -Infinity;
+    var look = 0.4;
+    for (var k = 0; k < 24; k++) {
+      var a = Math.atan2(guy, gux) + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 12);
+      var cx = Math.cos(a);
+      var cy = Math.sin(a);
+      var qx = e.x + cx * look;
+      var qy = e.y + cy * look;
+      var pen = 0;
+      for (var i = 0; i < game.entities.length; i++) {
+        var en = game.entities[i];
+        if (en.dead || en.kind === 'troop' || en === skip) continue;
+        var need = avoidRadius(en) + e.r;
+        var dq = Math.hypot(en.x - qx, en.y - qy);
+        if (dq < need) pen += (need - dq) * 4;
+      }
+      // Walls and the river are obstacles too: a ground step into the river off a bridge is pushed back out.
+      if (qx < e.r || qx > W - e.r || qy < e.r || qy > H - e.r) pen += 2;
+      if (!e.air && !e.def.jumpsRiver && isRiverY(qy) && !onBridgeX(qx, e.r)) pen += 2;
+      var score = cx * gux + cy * guy - pen;
+      if (e.lastDir) score += 0.8 * (cx * e.lastDir.x + cy * e.lastDir.y);
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x: cx, y: cy };
+      }
+    }
+    if (!best) return null;
+    e.lastDir = best;
+    return best;
   }
 
   // Drops the part of v that points into an arena edge the unit is touching, so a tangent along a wall
@@ -842,6 +894,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     e.slowT = Math.max(0, e.slowT - dt);
     if (e.slowT === 0) e.slowAmount = 0;
     e.rageT = Math.max(0, e.rageT - dt);
+    e.knockT = Math.max(0, e.knockT - dt);
     var disabled = e.stunT > 0 || e.freezeT > 0;
 
     if (def.spawn) {

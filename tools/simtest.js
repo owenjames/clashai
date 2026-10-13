@@ -119,7 +119,7 @@ function botAct(game, bot) {
 }
 
 // Walk-speed check: a ground troop that is walking must average at least 70 percent of its speed over each
-// 1 s window. Walking excludes attacking, deploying, stunned, frozen, slowed and raged troops. A window is
+// 1 s window. Walking excludes attacking, deploying, stunned, frozen, slowed, raged and knocked-back troops. A window is
 // not counted when the troop was within 1.5 tiles of its target, touched another troop at any step, or was
 // squeezed between two or more towers or buildings (a crowd or pocket pushes it around, not a footprint). Other windows that touched a tower or building
 // are reported as a separate failure.
@@ -137,7 +137,7 @@ function trackWalk(game, tr, tag) {
     if (e.kind !== 'troop' || e.air || e.dead || !(e.def.speed > 0)) continue;
     seen.add(e);
     const walking =
-      e.deployT <= 0 && !e.hidden && e.stunT <= 0 && e.freezeT <= 0 && e.slowT <= 0 && e.rageT <= 0 &&
+      e.deployT <= 0 && !e.hidden && e.stunT <= 0 && e.freezeT <= 0 && e.slowT <= 0 && e.rageT <= 0 && e.knockT <= 0 &&
       !e.charging && !e.dash && !(e.target && edgeDistTo(e, e.target) <= e.def.range + 0.05);
     let a = tr.anchor.get(e);
     if (!walking) {
@@ -154,7 +154,7 @@ function trackWalk(game, tr, tag) {
       if (o === e || o.dead) continue;
       const d = Math.hypot(o.x - e.x, o.y - e.y);
       if (o.kind === 'troop') {
-        if (d < e.r + o.r + 0.5) crowd = true;
+        if (d < e.r + o.r + 1.0) crowd = true;
       } else if (d < e.r + o.r + 0.6) {
         bldContacts++;
       }

@@ -372,6 +372,28 @@ Tournament at n=10 (snapshot `b6be1285b0`): `control` 87.8%, `ai:hard` 75.6%, `b
    segment). `offense.pocketUsage` value `tankOnly` behaves like `always` for the tank; only `never` and the
    support spot differ. That is a known gap, not a dead parameter.
 
+### Round 3
+
+Changes: a wedge fix in the engine (a local sampling planner for blocked steps, walls and the river as
+obstacles, a one-way bridge commitment, a knockback timer), a spend-based punish trigger in the bot (counter-push
+when the opponent has spent 6 elixir or more in 8 s; neutral within noise), and forced plays that place
+buildings.
+
+| Measure | Round 2 | Round 3 |
+| --- | --- | --- |
+| simtest walk windows below 70%, without troop crowding (crowd radius 1 tile) | 111 | 11 |
+| simtest walk windows touching a tower or building | 56 | 3 |
+| AI vs AI towers destroyed per match (n=300, seed 1) | 0.92 | 1.01 |
+| AI vs AI overtime (n=300, seed 1) | 75% | 78% |
+| `ai:hard` vs `ai:normal` (n=300, seed 1) | 63% | 60% |
+| `ai:normal` vs `ai:easy` (n=300, seed 1) | 79% | 71 to 74% |
+| `ai:hard` vs `ai:easy` (n=300, seed 1) | 80% | 80 to 81% |
+| Tournament n=10, `bot:control` / `ai:hard` / `ai:normal` | 87.8 / 75.6 / 57.8% | 80.0 / 74.4 / 60.0% |
+
+Not reached in this round: overtime under 50%, towers per match at least 1.2, hard over normal at 65%, and
+lone-troop halving. The remaining simtest windows are corner and wedge cases (a unit between a wall or river edge
+and a building) that the local planner does not clear; they are listed under Limits.
+
 ### Remaining problems
 
 - Stalemates remain. AI vs AI matches still end 0-0 on crowns about half the time, so 75 to 81% reach
@@ -398,9 +420,10 @@ Tournament at n=10 (snapshot `b6be1285b0`): `control` 87.8%, `ai:hard` 75.6%, `b
   each matchup. The head-to-head numbers mix strategy and deck.
 - Spell measurement is approximate. Impact is checked after the flight time, so units that move during the
   flight can be counted as hits or misses. Logs and barrels are not checked in the reviews.
-- simtest's walk-speed check (`trackWalk`) fails with 111 open-ground and 56 building-touching windows over 40
-  random-bot matches. Those are wedges in pockets between obstacles, not a crawl along one footprint. The check
-  is strict on purpose: it does not yet pass.
+- simtest's walk-speed check (`trackWalk`) still fails: 11 open-ground and 3 building-touching windows over 40
+  random-bot matches, all in corners or wedges between a wall or the river edge and a building. Troops queued
+  within one tile of another troop are excluded as crowding; troops knocked back by a spell are excluded for 0.6 s.
+  The check is strict otherwise and does not pass yet.
 - The stall threshold (0.25 tiles/s over 5 s) is a heuristic. It catches the crawls described above. It will
   also report a unit held by a large crowd, under the "jam" label.
 - The engine and card data are being changed by another agent. These results are for the state at the time

@@ -145,6 +145,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     this.cycleLane = 0;
     this.capSince = null;        // time elixir first reached maxHold in this run
     this.enemyPlays = [];        // { t, cardId, lane }
+    this.enemySpends = [];       // { t, cost } of the opponent's recent plays
     this.enemyLastLane = -1;
     this.lastPushLane = -1;
     this.towerHp = new Map();    // enemy tower -> last hp seen
@@ -193,12 +194,16 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var g = this.game, t = g.time, self = this;
     (g.events || []).forEach(function (ev) {
       if (ev.type === 'deploy' && ev.team === self.enemy) {
+        // Elixir the opponent spent in the last 8 s. A big spend leaves it short, so a push now is punished.
+        var ec = CR.CARDS[ev.cardId] ? CR.CARDS[ev.cardId].cost : 0;
+        self.enemySpends.push({ t: t, cost: ec });
         self.enemyPlays.push({ t: t, cardId: ev.cardId, lane: laneOf(ev.x) });
         if (self.enemyPlays.length > 20) self.enemyPlays.shift();
         var R = self.R(ev.cardId);
         if (R && !R.spell) self.enemyLastLane = laneOf(ev.x);
       }
     });
+    this.enemySpends = this.enemySpends.filter(function (x) { return x.t >= t - 8; });
     this.towerHp.forEach(function (hp0, tw) {
       var drop = hp0 - tw.hp;
       if (drop > 0) self.stats.towerDamage += drop;
@@ -618,7 +623,10 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var enemyEl = (g.players[this.enemy] && g.players[this.enemy].elixir) || 0;
 
     if (this.pushes.length === 0) {
+      var spent8 = this.enemySpends.reduce(function (s, x) { return s + x.cost; }, 0);
+      var punish = oc.counterPush && spent8 >= 6 && me.elixir >= oc.counterElixir;
       var counter = oc.counterPush && t < this.counterUntil && me.elixir >= oc.counterElixir && me.elixir >= enemyEl;
+      counter = counter || punish;
       var roll = agg > 0 && me.elixir >= el.pushThreshold && this.rng() < agg * 0.5;
       if (t >= this.pushCooldownUntil && (counter || roll)) {
         if (counter) this.counterUntil = -1;
