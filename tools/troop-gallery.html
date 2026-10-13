@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Troop art</title>
+<style>
+  :root { --grass: #6cbf4a; --grass-2: #63b642; --ink: #1d1a33; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background-color: var(--grass);
+    background-image: repeating-conic-gradient(var(--grass) 0 25%, var(--grass-2) 0 50%);
+    background-size: 32px 32px;
+    color: var(--ink);
+    font: 600 13px/1.2 system-ui, -apple-system, sans-serif;
+    padding: 12px 16px 40px;
+    min-height: 100vh;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  h1 { font-size: 16px; margin: 0; text-shadow: 0 1px 0 rgba(255,255,255,.35); }
+  button {
+    font: inherit; color: var(--ink); background: #fff; border: 2px solid var(--ink);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .cell {
+    background: rgba(255,255,255,.16); border-radius: 12px; padding: 6px 4px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .pair { display: flex; justify-content: center; gap: 2px; }
+  .pair canvas, .frames canvas { display: block; }
+  .name { font-weight: 700; text-shadow: 0 1px 0 rgba(255,255,255,.35); }
+  .static { display: flex; flex-direction: column; gap: 12px; }
+  .block { background: rgba(255,255,255,.16); border-radius: 12px; padding: 8px; }
+  .block h2 { font-size: 14px; margin: 0 0 4px; }
+  .row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 2px; margin-bottom: 4px; }
+  .row .lbl { width: 52px; font-size: 11px; opacity: .8; }
+  .frames { display: flex; flex-wrap: wrap; gap: 2px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Troop art</h1>
+  <button id="toggle" type="button" aria-pressed="false">All poses</button>
+</header>
+<main>
+  <div id="live" class="grid"></div>
+  <div id="static" class="static hidden"></div>
+</main>
+<script src="../js/cards.js"></script>
+<script src="../js/troopart.js"></script>
+<script>
+(function () {
+  'use strict';
+  var TA = CR.TroopArt;
+  var UNIT_PX = 80;                 // standard character height in CSS px
+  var SEG = 1.4;                    // seconds per pose in the live loop
+  var SEQ = ['walk', 'attack', 'idle'];
+  var STATIC_PX = 52;               // static review frames
+  var DPR = Math.min(2, window.devicePixelRatio || 1);
+  var ids = Object.keys(CR.UNITS);
+  var live = document.getElementById('live');
+  var stat = document.getElementById('static');
+  var toggle = document.getElementById('toggle');
+  var liveCanvases = [];
+  var staticBuilt = false;
+
+  // Canvas wide enough for the widest weapon or mount; feet sit 1.5 units from the top.
+  function makeCanvas(cssW, cssH, feetX, feetY, unitPx) {
+    var cv = document.createElement('canvas');
+    cv.width = Math.round(cssW * DPR);
+    cv.height = Math.round(cssH * DPR);
+    cv.style.width = cssW + 'px';
+    cv.style.height = cssH + 'px';
+    return { cv: cv, cssW: cssW, cssH: cssH, feetX: feetX, feetY: feetY, unitPx: unitPx };
+  }
+  function prep(o, scale) {
+    var c = o.cv.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    c.clearRect(0, 0, o.cssW, o.cssH);
+    c.setTransform(DPR * o.unitPx * scale, 0, 0, DPR * o.unitPx * scale, DPR * o.feetX, DPR * o.feetY);
+    return c;
+  }
+
+  // Live grid: blue and red side by side, looping walk, attack, idle.
+  ids.forEach(function (id) {
+    var u = CR.UNITS[id];
+    var s = TA.scaleOf(id);
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    var pair = document.createElement('div');
+    pair.className = 'pair';
+    var entries = [0, 1].map(function (team) {
+      var o = makeCanvas(150, 140, 75, 118, UNIT_PX);
+      pair.appendChild(o.cv);
+      return { o: o, team: team, s: s, id: id };
+    });
+    cell.appendChild(pair);
+    var name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = u.name;
+    cell.appendChild(name);
+    live.appendChild(cell);
+    liveCanvases = liveCanvases.concat(entries);
+  });
+
+  var t0 = performance.now();
+  function frame(now) {
+    var t = (now - t0) / 1000;
+    var cycle = SEQ.length * SEG;
+    var k = Math.floor((t % cycle) / SEG);
+    var pose = SEQ[k];
+    var ph = ((t % SEG) / SEG);
+    liveCanvases.forEach(function (e) {
+      var c = prep(e.o, e.s);
+      TA.draw(c, e.id, e.team, pose, ph, {});
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // Static review: every pose frame, blue row then red row, per unit.
+  function buildStatic() {
+    if (staticBuilt) return;
+    staticBuilt = true;
+    ids.forEach(function (id) {
+      var block = document.createElement('div');
+      block.className = 'block';
+      var h = document.createElement('h2');
+      h.textContent = CR.UNITS[id].name;
+      block.appendChild(h);
+      var s = TA.scaleOf(id);
+      [0, 1].forEach(function (team) {
+        TA.POSES.forEach(function (pose) {
+          var row = document.createElement('div');
+          row.className = 'row';
+          var lbl = document.createElement('div');
+          lbl.className = 'lbl';
+          lbl.textContent = pose;
+          row.appendChild(lbl);
+          var n = TA.FRAMES[pose];
+          for (var i = 0; i < n; i++) {
+            var o = makeCanvas(112, 100, 56, 78, STATIC_PX);
+            row.appendChild(o.cv);
+            var c = prep(o, s);
+            TA.draw(c, id, team, pose, i / n, {});
+          }
+          block.appendChild(row);
+        });
+      });
+      stat.appendChild(block);
+    });
+  }
+
+  toggle.addEventListener('click', function () {
+    var on = toggle.getAttribute('aria-pressed') !== 'true';
+    toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) buildStatic();
+    live.classList.toggle('hidden', on);
+    stat.classList.toggle('hidden', !on);
+  });
+})();
+</script>
+</body>
+</html>
