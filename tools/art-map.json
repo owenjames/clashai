@@ -1,0 +1,517 @@
+{
+  "_about": "Human-editable mapping for tools/art-pipeline.py. source is a character id from `inventory` (see vendor-art/INVENTORY.md). anims maps a sprite state (idle, walk, attack, death) to an animation key of that character. flip mirrors the frames so the art faces right. scale is the manifest height in tiles for a radius 0.5 unit (the renderer multiplies by r / 0.5). tint multiplies the art with a hex colour. hue rotates the art by that many degrees (use for colour variants). why is the reason for the choice.",
+  "units": {
+    "knight": {
+      "source": "knight-characters-free-sprite/PNG/bronze_knight::frames",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Armoured knight with shield in the same cartoon style as the other sets.",
+      "heightTiles": 1.4
+    },
+    "archer": {
+      "source": "2d-fantasy-elf-free-sprite-sheets/_PNG/1::Elf_01",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Elf with a bow, 2D fantasy set.",
+      "heightTiles": 1.3
+    },
+    "giant": {
+      "source": "2d-fantasy-trolls-free-sprite-sheets/_PNG/1_TROLL::Troll_01_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Heavy troll, bigger silhouette than the knight.",
+      "heightTiles": 2.4
+    },
+    "musketeer": {
+      "source": "free-2d-pirate-character-sprites/PNG/2::2_entity_000",
+      "anims": {
+        "idle": "idle",
+        "walk": "run",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Pirate with a pistol, closest to a musketeer with a gun.",
+      "heightTiles": 1.3
+    },
+    "minipekka": {
+      "source": "free-chibi-skeleton-crusader-character-sprites/Skeleton_Crusader_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "running",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Armoured crusader, reads as a heavy armoured knight. Stands in for the P.E.K.K.A line.",
+      "heightTiles": 1.4
+    },
+    "goblin": {
+      "source": "free-orc-ogre-and-goblin-chibi-2d-game-sprites/Goblin",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Chibi goblin, same style as the orc and ogre.",
+      "heightTiles": 1.0
+    },
+    "speargoblin": {
+      "source": "free-orc-ogre-and-goblin-chibi-2d-game-sprites/Goblin",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "throwing",
+        "death": "dying"
+      },
+      "why": "Goblin shifted toward blue so it reads apart from the goblin.",
+      "hue": 90,
+      "heightTiles": 1.0
+    },
+    "skeleton": {
+      "source": "free-chibi-skeleton-warrior-character-sprites/Skeleton_Warrior_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Chibi skeleton warrior, the classic skeleton.",
+      "heightTiles": 0.9
+    },
+    "valkyrie": {
+      "source": "free-chibi-valkyrie-character-sprites/Valkyrie_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Chibi valkyrie, the reference character for this card.",
+      "heightTiles": 1.4
+    },
+    "wizard": {
+      "source": "wizard-character-free-sprite/PNG/wizard::frames",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Blue robed wizard from the wizard set.",
+      "heightTiles": 1.3
+    },
+    "prince": {
+      "source": "2d-fantasy-knight-free-sprite-sheets/_PNG/2_KNIGHT::Knight_02",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Mounted-style knight with a lance look, 2D fantasy set.",
+      "heightTiles": 1.6
+    },
+    "bomber": {
+      "source": "free-chibi-skeleton-warrior-character-sprites/Skeleton_Warrior_2",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "throwing",
+        "death": "dying"
+      },
+      "why": "Skeleton that throws, close to the bomber's throw attack.",
+      "heightTiles": 1.3
+    },
+    "pekka": {
+      "source": "free-chibi-skeleton-crusader-character-sprites/Skeleton_Crusader_2",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Heavy armoured crusader, bigger than the mini P.E.K.K.A.",
+      "heightTiles": 2.0
+    },
+    "witch": {
+      "source": "free-reaper-man-chibi-2d-game-sprites/Reaper_Man_2",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "throwing",
+        "death": "dying"
+      },
+      "why": "Hooded robed caster, the closest to a witch in the set.",
+      "heightTiles": 1.3
+    },
+    "golem": {
+      "source": "free-golems-chibi-2d-game-sprites/Golem_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Chibi stone golem, the card's golem.",
+      "heightTiles": 2.6
+    },
+    "golemite": {
+      "source": "free-golems-chibi-2d-game-sprites/Golem_2",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Second golem, smaller in game through the scale value.",
+      "heightTiles": 1.4
+    },
+    "barbarian": {
+      "source": "free-orc-ogre-and-goblin-chibi-2d-game-sprites/Orc",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Chibi orc, the barbarian's usual look.",
+      "heightTiles": 1.4
+    },
+    "royalgiant": {
+      "source": "free-orc-ogre-and-goblin-chibi-2d-game-sprites/Ogre",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Chibi ogre, big and heavy like the royal giant.",
+      "heightTiles": 2.4
+    },
+    "princess": {
+      "source": "free-2d-fantasy-elf-warrior-character-sprites/PNG/elves/5::5_animation",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": null
+      },
+      "why": "White-robed crowned elf with a staff, the closest to a princess in the packs.",
+      "heightTiles": 1.3
+    },
+    "electrowizard": {
+      "source": "wizard-character-free-sprite/PNG/wizard::frames",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Wizard with the robe hue turned to yellow for the electric look.",
+      "hue": 135,
+      "heightTiles": 1.3
+    },
+    "megaknight": {
+      "source": "free-minotaur-chibi-character-sprites/Minotaur_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "slashing",
+        "death": "dying"
+      },
+      "why": "Heavy horned chibi knight, closest to the mega knight's bulk.",
+      "heightTiles": 1.9
+    },
+    "bandit": {
+      "source": "free-2d-pirate-character-sprites/PNG/1::1_entity_000",
+      "anims": {
+        "idle": "idle",
+        "walk": "run",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Pirate with a hat and blade, reads as a bandit.",
+      "heightTiles": 1.3
+    },
+    "icewizard": {
+      "source": "wizard-character-free-sprite/PNG/wizard_ice::frames",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Ice wizard from the wizard set.",
+      "heightTiles": 1.3
+    },
+    "darkprince": {
+      "source": "2d-fantasy-knight-free-sprite-sheets/_PNG/3_KNIGHT::Knight_03",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Armoured knight with the gold turned to violet, a dark prince colour.",
+      "hue": 225,
+      "heightTiles": 1.6
+    },
+    "executioner": {
+      "source": "free-reaper-man-chibi-2d-game-sprites/Reaper_Man_3",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "throwing",
+        "death": "dying"
+      },
+      "why": "Reaper with a heavy weapon, the executioner's axe throw.",
+      "heightTiles": 1.5
+    },
+    "lumberjack": {
+      "source": "2d-fantasy-orc-free-sprite-sheets/_PNG/2_ORK::ORK_02",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "why": "Orc with an axe, the lumberjack's look.",
+      "heightTiles": 1.4
+    },
+    "bat": {
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_3",
+      "anims": {
+        "idle": "idle",
+        "walk": "fly",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 0.9,
+      "why": "Grey bat with wings, flies. Small like the card."
+    },
+    "babydragon": {
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_4",
+      "anims": {
+        "idle": "idle",
+        "walk": "fly",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 1.6,
+      "why": "Red winged dragon, flies. Flipped: the source faces left.",
+      "flip": true
+    },
+    "balloon": {
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_5",
+      "anims": {
+        "idle": "idle",
+        "walk": "fly",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 1.8,
+      "why": "Orange flying eye, the nearest to a balloon."
+    },
+    "minion": {
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_2",
+      "anims": {
+        "idle": "idle",
+        "walk": "fly",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 1.0,
+      "why": "Flying wasp-like minion. Imp art not in the packs."
+    },
+    "lavahound": {
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_6",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 2.2,
+      "why": "Rock beast with orange lava veins. Walks in art, flies in game (flyer flag is in the engine)."
+    },
+    "lavapup": {
+      "source": "free-monster-enemy-sprites-for-tower-defense/Monster_7",
+      "anims": {
+        "idle": "idle",
+        "walk": "walking",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 1.0,
+      "why": "Red horned blob, a small lava creature."
+    },
+    "miner": {
+      "source": "free-monster-enemy-game-sprites/PNG/8::8_enemies_1",
+      "anims": {
+        "idle": "idle",
+        "walk": "walk",
+        "attack": "attack",
+        "death": "dying"
+      },
+      "heightTiles": 1.3,
+      "why": "Helmeted digger with a slab. Closest to a miner."
+    }
+  },
+  "unmapped": {
+    "hogrider": "no boar or rider art in the packs",
+    "icespirit": "spirit: ice orb art is for projectiles",
+    "electrospirit": "spirit: no electric spirit art",
+    "firespirit": "spirit: fire orb art is for projectiles"
+  },
+  "effects": {
+    "splash": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke Explosion/PNG::Smoke_Explosion_Frame",
+        "fps": 14,
+        "scale": 1.3,
+        "why": "Smoke burst for splash damage."
+      }
+    ],
+    "tornado": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke Blow/PNG::Smoke_Blow_Frame",
+        "fps": 14,
+        "scale": 1.4,
+        "alpha": 0.8,
+        "why": "Swirling smoke for tornado."
+      }
+    ],
+    "rage": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke Spell/PNG::Smoke_Spell_Frame",
+        "fps": 10,
+        "scale": 1.2,
+        "alpha": 0.7,
+        "why": "Soft spell smoke for the rage aura."
+      }
+    ],
+    "death": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke/PNG::Smoke_Frame",
+        "fps": 12,
+        "scale": 1.0,
+        "alpha": 0.8,
+        "why": "Puff when a unit dies."
+      }
+    ],
+    "spawn": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke/PNG::Smoke_Frame",
+        "fps": 12,
+        "scale": 0.9,
+        "alpha": 0.7,
+        "why": "Puff when a unit lands."
+      }
+    ],
+    "hit": [
+      {
+        "source": "free-slash-sprite-cartoon-effects/PNG/1::frames",
+        "fps": 18,
+        "scale": 0.8,
+        "why": "Slash mark on hit."
+      }
+    ],
+    "dash": [
+      {
+        "source": "free-cartoon-smoke-effects-asset-pack/Smoke Blow/PNG::Smoke_Blow_Frame",
+        "fps": 14,
+        "scale": 1.0,
+        "alpha": 0.7,
+        "why": "Dust trail for dash attacks."
+      }
+    ]
+  },
+  "towers": {
+    "princess": {
+      "team0": {
+        "source": "free-simple-summer-top-down-vector-tileset/PNG::Top_Down_Simple_Summer_Prop_Castle_Round",
+        "anims": {
+          "idle": "seq"
+        },
+        "recolor": {
+          "mul": "#8fb8ff",
+          "band": 0.42
+        }
+      },
+      "team1": {
+        "source": "free-simple-summer-top-down-vector-tileset/PNG::Top_Down_Simple_Summer_Prop_Castle_Round",
+        "anims": {
+          "idle": "seq"
+        },
+        "recolor": {
+          "mul": "#ff9a8a",
+          "band": 0.42
+        }
+      },
+      "scale": 3.6,
+      "why": "Round stone castle tower, reads well at 3x3. Blue wash on the roof for team 0, red for team 1."
+    },
+    "king": {
+      "team0": {
+        "source": "free-simple-summer-top-down-vector-tileset/PNG::Top_Down_Simple_Summer_Prop_Castle_Square",
+        "anims": {
+          "idle": "seq"
+        },
+        "recolor": {
+          "hue": 215
+        }
+      },
+      "team1": {
+        "source": "free-simple-summer-top-down-vector-tileset/PNG::Top_Down_Simple_Summer_Prop_Castle_Square",
+        "anims": {
+          "idle": "seq"
+        },
+        "recolor": {
+          "hue": 0
+        }
+      },
+      "scale": 4.8,
+      "tintable": true,
+      "why": "Square castle keep. Blue roof for team 0, red for team 1."
+    }
+  },
+  "buildings": {
+    "cannon": {
+      "source": "file:free-stone-tower-game-assets/PNG/3.png",
+      "heightTiles": 1.3,
+      "why": "Grey stone base with two pillars: a turret."
+    },
+    "infernotower": {
+      "source": "file:free-stone-tower-game-assets/PNG/12.png",
+      "heightTiles": 1.6,
+      "why": "Purple base with a fire flame: reads as an inferno."
+    },
+    "tesla": {
+      "source": "file:free-stone-tower-game-assets/PNG/25.png",
+      "heightTiles": 1.5,
+      "why": "Grey stone tower with pillars: tesla-coil stand-in."
+    },
+    "tombstone": {
+      "source": "file:free-stone-tower-game-assets/PNG/27.png",
+      "heightTiles": 1.0,
+      "why": "Round-topped stone post: loose fit for a gravestone."
+    },
+    "goblinhut": {
+      "source": "file:free-simple-summer-top-down-vector-tileset/PNG/Top-Down Simple Summer_Prop - House.png",
+      "heightTiles": 1.6,
+      "why": "Wooden village house with a roof."
+    }
+  }
+}
