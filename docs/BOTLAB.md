@@ -15,7 +15,7 @@ findings. Node built-ins only. No rendering. Simulation steps at dt = 1/30.
 
 The bot reads only the public engine API and the card and tower data (`CR.CARDS`, `CR.UNITS`,
 `CR.TOWERS`, `CR.ARENA`). Its roles and board layout are rebuilt from that data when it starts, so new
-cards are picked up. `js/engine.js`, `js/cards.js` and `js/ai.js` are not changed by the lab.
+cards are picked up. `js/engine.js` and `js/cards.js` are not changed by the lab. `js/ai.js` is a thin adapter over the bot.
 
 The bot is not wired into the browser app. `index.html` and `main.js` are untouched. It runs in Node only
 for now.
@@ -328,162 +328,67 @@ not reported, and a unit that stands still because its crowd is moving can appea
 
 ## Findings
 
-Snapshot `2a7f3da9b6` (the sha1 of `js/engine.js`, `js/cards.js`, `js/ai.js`, `js/bot.js` and
-`js/botconfig.js`, printed in every run's header). The mechanics agent is still adding cards and rules to the
-engine, so these numbers are for this snapshot. Re-run the commands to refresh them. Outputs are in
-`docs/reviews/`.
+Snapshot `b6be1285b0` (sha1 of the engine, cards, AI and bot files, printed in every run's header). The
+engine now steers ground troops around towers and buildings, `CR.AI` is a thin adapter over `CR.Bot`, and the
+bot's forced play can use buildings. The baseline numbers below come from the code before those changes.
 
-### Tournament (n=6, 54 games per competitor)
+### Before and after
 
-```
-Tournament: 10 competitors, n=6 per pair (45 pairs), seed=1, snapshot=2a7f3da9b6
-Points: 3 per win, 1 per draw. Crowns and tower damage are per game.
+| Measure | Before | After |
+| --- | --- | --- |
+| AI vs AI, towers destroyed per match (both sides, n=60) | 0.78 | 0.78 to 0.93 (n=300, seeds 1 to 3) |
+| AI vs AI, overtime rate | 77.5 to 90% | 75 to 81% |
+| `ai:hard` vs `ai:normal` win rate | 47.5% (n=40) | 63% (seed 1), 51 to 55% (seeds 2, 3) |
+| `ai:normal` vs `ai:easy` win rate | 37.5% (n=40) | 79% (seed 1), 72 to 75% (seeds 2, 3) |
+| `ai:hard` vs `ai:easy` win rate | 50% (n=40) | 80% (seed 1), 77 to 79% (seeds 2, 3) |
+| `bot:control` vs `ai:normal` (n=120) | 80% (n=40) | 77.5% |
+| `bot:cycle` vs `ai:normal` (n=120) | 5% (n=40) | 10% |
+| `bot:turtle` vs `ai:normal` (n=120) | 5% (n=40) | 15%, leak 0.0 s (was 17.6 s) |
+| `bot:bridgespam` vs `ai:normal` (n=120) | 13% (n=40) | 28% |
+| Walk windows under 70% speed touching a tower or building, by the same test | 889 | 56 (see Limits) |
+| Walk windows under 70% speed, all causes (simtest, 40 matches) | 2629 | 1660 (1549 with troop crowding) |
 
-Competitor      Pts   W  D   L  Win rate  Crowns for  Crowns vs  Tower dmg for  Tower dmg vs  Games
---------------  ---  --  -  --  --------  ----------  ---------  -------------  ------------  -----
-bot:control     126  42  0  12     77.8%        0.65       0.04         3628.5        1272.9     54
-ai:hard         121  40  1  13     74.1%        0.83       0.20         3465.9        1903.1     54
-bot:beatdown    111  37  0  17     68.5%        0.61       0.20         3302.9        1756.0     54
-bot:bait        111  37  0  17     68.5%        0.41       0.15         2516.4        1457.0     54
-ai:normal       111  37  0  17     68.5%        0.46       0.28         3100.9        2347.2     54
-ai:easy         105  35  0  19     64.8%        0.56       0.30         2958.8        2369.4     54
-bot:cycle        37  12  1  41     22.2%        0.11       0.67         1132.0        2950.8     54
-bot:turtle       33  11  0  43     20.4%        0.07       0.43         1366.6        2964.3     54
-bot:bridgespam   27   9  0  45     16.7%        0.07       0.44          950.6        2754.9     54
-bot:random       27   9  0  45     16.7%        0.11       1.19         2524.4        5171.4     54
+Tournament at n=10 (snapshot `b6be1285b0`): `control` 87.8%, `ai:hard` 75.6%, `bait` 72.2%, `beatdown`
+66.7%, `ai:normal` 57.8%, `ai:easy` 42.2%, `turtle` 40.0%, `bridgespam` 30.0%, `cycle` 16.7%, `random` 11.1%.
 
-Head to head, row A vs column B, W-L-D from A's side:
+### What changed
 
-A \ B                 1      2      3      4      5      6      7      8      9     10
-----------------  -----  -----  -----  -----  -----  -----  -----  -----  -----  -----
-1 bot:control         -  4-2-0  2-4-0  4-2-0  3-3-0  5-1-0  6-0-0  6-0-0  6-0-0  6-0-0
-2 ai:hard         2-4-0      -  4-2-0  3-3-0  4-2-0  4-2-0  5-0-1  6-0-0  6-0-0  6-0-0
-3 bot:beatdown    4-2-0  2-4-0      -  3-3-0  2-4-0  3-3-0  6-0-0  5-1-0  6-0-0  6-0-0
-4 bot:bait        2-4-0  3-3-0  3-3-0      -  3-3-0  3-3-0  6-0-0  6-0-0  5-1-0  6-0-0
-5 ai:normal       3-3-0  2-4-0  4-2-0  3-3-0      -  2-4-0  6-0-0  6-0-0  5-1-0  6-0-0
-6 ai:easy         1-5-0  2-4-0  3-3-0  3-3-0  4-2-0      -  5-1-0  6-0-0  5-1-0  6-0-0
-7 bot:cycle       0-6-0  0-5-1  0-6-0  0-6-0  0-6-0  1-5-0      -  3-3-0  4-2-0  4-2-0
-8 bot:turtle      0-6-0  0-6-0  1-5-0  0-6-0  0-6-0  0-6-0  3-3-0      -  4-2-0  3-3-0
-9 bot:bridgespam  0-6-0  0-6-0  0-6-0  1-5-0  1-5-0  1-5-0  2-4-0  2-4-0      -  2-4-0
-10 bot:random     0-6-0  0-6-0  0-6-0  0-6-0  0-6-0  0-6-0  2-4-0  3-3-0  4-2-0      -
-```
+1. Tower footprints. A ground troop whose straight walk to its goal enters a tower or building circle turns
+   onto that circle's tangent at full speed, on the side that leads to the goal, and keeps that side for 1.5 s.
+   Towers use the corner of their footprint as the steering radius. A troop that makes no headway for 0.6 s
+   flips its side and steps away from the nearby obstacles. The Musketeer behind its own princess tower now
+   walks round it at about full speed (mechtest 41a), and a Knight walks round a cannon on the bridge approach
+   and reaches the king's range (41b). The Hog Rider crawl near its own princess is gone.
+2. `CR.AI` is a thin adapter. It classifies the AI's deck (`beatdown`, `cycle`, `control`, `bait`, `bridgespam`
+   or `turtle`), builds a `CR.Bot` from that preset, and applies a difficulty overlay (`js/ai.js`,
+   `DIFFICULTY`). Easy reacts in 2 to 3 s, leaks elixir, picks the second-best counter half the time and does
+   not counter-push. Normal reacts in 1.2 to 2 s and counter-picks a third of the time. Hard reacts in 0.25 to
+   0.5 s, never leaks, answers threats at lower value, and pushes on a 1.5 s cooldown.
+3. Pushes. The tank drops at the bridge (not behind the princess), the lane is the weakest princess, and the
+   defence answers threats at a lower threshold. Tank placement at the bridge is the single biggest change:
+   overtime went from about 85% to 72% on its own.
+4. Forced plays can place buildings, so turtle no longer leaks elixir at the cap.
+5. Schema audit: all 55 keys in `CR.BOT_SCHEMA` are read by `js/bot.js` (checked by grep on the last key
+   segment). `offense.pocketUsage` value `tankOnly` behaves like `always` for the tank; only `never` and the
+   support spot differ. That is a known gap, not a dead parameter.
 
-At this size a pair of competitors is 6 games, so only large gaps show. `control` leads with 42 wins in 54 and
-deals about 2.9 times the tower damage it takes per game. The n=40 runs below check its strength against each
-AI.
+### Remaining problems
 
-### Matchups at n=40
-
-From `docs/reviews/matchups-n40.txt`. Win rate from the first competitor's side, with the Wilson 95 percent
-interval.
-
-| Matchup | Win rate (95% CI) | Crowns for / vs | Tower dmg for / vs | Overtime |
-| --- | --- | --- | --- | --- |
-| AI easy vs AI normal | 50.0% (35.2, 64.8) | 0.28 / 0.33 | 2368 / 2245 | 65.0% |
-| AI hard vs AI normal | 47.5% (32.9, 62.5) | 0.38 / 0.33 | 2274 / 2511 | 77.5% |
-| AI hard vs AI easy | 50.0% (35.2, 64.8) | 0.50 / 0.43 | 2716 / 2641 | 67.5% |
-| control vs AI normal | 80.0% (65.2, 89.5) | 0.55 / 0.10 | 3501 / 1561 | 67.5% |
-| control vs AI hard | 75.0% (59.8, 85.8) | 0.60 / 0.10 | 3622 / 1587 | 65.0% |
-| beatdown vs AI hard | 57.5% (42.2, 71.5) | 0.60 / 0.53 | 2982 / 2636 | 52.5% |
-| cycle vs AI hard | 5.0% (1.4, 16.5), 2-37-1 | 0.05 / 1.00 | 980 / 4216 | 50.0% |
-
-### Reviews
-
-Reviews of `control` at seed 7 against `ai:normal` and `ai:hard`, and an extra review of `cycle` against
-`ai:normal` at seed 3 (`docs/reviews/`).
-
-- Against `ai:normal` the match ended 0-0 on crowns and went to the tiebreak, which the bot won. The bot dealt
-  541 tower damage and took 214. Its findings: one AI tower hit with no defender present, 20 bot troops lost in
-  the enemy half, 12 bot troops crawling along a tower footprint, 7 AI units doing the same, and 4 AI troops sent
-  into a tower alone.
-- Against `ai:hard` the match also ended 0-0 and went to the tiebreak, which the bot won. The bot dealt 2158 and
-  took 651. Its findings: 18 bot troops lost in the enemy half, 10 bot units crawling along a tower footprint, 5
-  AI units doing the same, one AI Giant standing still with no visible cause, and 6 AI troops sent into a tower
-  alone.
-- Against `ai:normal` at seed 3, `cycle` lost 0-1 on crowns. It took 3162 tower damage and dealt 1272. It cast
-  56 defences and one push. Its findings: 26 bot troops lost in the enemy half (12 Goblins, 7 Skeletons, 4 Bats,
-  3 Knights).
-
-### What the runs show about the computer opponent (CR.AI)
-
-1. Its difficulty tiers are not distinguishable at n=40. `easy` against `normal` is 50 percent, `hard` against
-   `normal` is 47.5 percent, and `hard` against `easy` is 50 percent. Every interval runs from about 33 to 65
-   percent. The tiers differ in reaction time, gap, error chance, push threshold and counter-push, and none of
-   these moves the win rate beyond the noise at this size. Differences below about 15 points would not show.
-   The n=6 tournament matrix, which has `ai:easy` beating `ai:normal` 4-2, shows the same thing.
-2. Its ranged defenders stand directly behind the princess tower (`BACK_FY` at the lane's x). The path to the
-   bridge runs through the tower's footprint, so they crawl along it. Each review counts 5 to 7 AI units crawling
-   per match, mostly Musketeers, Archers and Electro Wizards between x 2.7 and 15.2 at y 4.5 to 5.1.
-3. It sends troops into towers alone. The reviews count 4 to 6 AI troops per match going into a princess tower
-   with no friendly troop within 3 tiles: Giants, Knights, Musketeers, Archers and Mini P.E.K.K.A. It also loses 10 to 11
-   troops per match in the bot's half without reaching a tower.
-4. It leaks elixir at every tier, 0.6 to 1.2 seconds per match, with no ordering by tier. Its damage spells hit
-   their targets: 9 of 9 and 12 of 12 in the two reviews. Its unanswered tower hits are rare: one in the
-   `ai:normal` review, none in the `ai:hard` review.
-
-### What the runs show about the engine and the game
-
-1. Matches are stalemates. In AI-against-AI matches 65 to 78 percent go to overtime. Each side loses 2200 to
-   2700 hit points of its roughly 10,900 total tower hit points in 3 minutes, which is 20 to 25 percent. Average
-   crowns per side are 0.3 to 0.5.
-2. Towers avoid units by sliding, not steering. A unit whose straight path crosses a tower footprint slides
-   along it at about 0.1 tiles/s instead of its speed, and can stay there for 10 seconds or more. The engine's
-   rule ("slide around them") leaves a unit behind a tower stuck. Both sides show it. Over the two `control`
-   reviews the bot had 10 to 12 such units per match and the AI 5 to 7.
-3. Units crowd at the bridge mouths and behind the towers. The reviews count 2 to 3 units per side per match
-   packed against each other with no target: at the bridge mouths (x 3 to 4 and 14 to 15, y 15 to 17), behind
-   the AI's towers (x 13.6 to 15.0, y 4.6 to 4.8) and behind the bot's towers (x 13.7 to 15.2, y 27.2 to 27.4).
-4. The other engine checks came back nearly clean in the final reviews. One AI Giant stood still with no target
-   and no visible cause in the hard review, and no other unit did. No troop sat in the river outside a bridge,
-   no projectile was launched with nothing at its aim point, and no unit left the arena. Earlier versions of the review did flag idle units and
-   target-less projectiles. Both were false positives: a unit shooting a stationary target, and a target killed
-   in the same step. The fixes were in the review, not the engine.
-
-### Bot findings
-
-1. The bot's ranged defenders have the same footprint crawl problem as the AI's. `defense.backDistance` places
-   them directly behind the tower, which is where the crawl starts. The control reviews count 10 to 12 bot
-   units crawling per match, more than the AI does.
-2. `cycle` loses nearly every game (2-37-1 against `ai:hard`). It answers threats 53 times per match, mostly with
-   cheap cards that die in the enemy half. It deals about 980 tower damage per match and takes about 4200.
-   Its defence is too cheap and too reactive, and its pushes are rare (3.4 per match).
-3. `control` is strong: 80 and 75 percent against the two AI tiers, with 3500 tower damage per match and 0.0
-   seconds of leak. Its pushes start 7 to 8 times per match, and its forced plays run 3 to 5 per match.
-4. The spells it casts are mostly Zap, 5 of 6 in each control review, with Freeze about once per match. Fireball
-   is not in its deck. Measured spell value runs about 30 percent above the value the bot predicted (31 against 24
-   in the normal review), so the spell valuation is conservative.
-5. Pushes lose troops in the enemy half before they reach a tower (18 to 20 per match for `control`). The
-   tank-and-support sequence works, but the filler units spent after support feed those losses.
-
-### Prioritised improvement list
-
-Priority reflects the effect on how useful the computer opponent is as a test, and on play quality.
-
-1. **Engine: steer around tower footprints.** A unit whose path crosses a footprint should route around the
-   corner, not slide along it. This is the largest stall in both sides' play. Owner: the engine. Verify with
-   `review`: the "crawled along a tower footprint" findings should go away.
-2. **AI: move ranged defence beside the princess tower, not behind it.** Replace `BACK_FY` at the lane's x with
-   a spot about 2.5 tiles to the side of the tower's centre. Owner: `js/ai.js`.
-3. **Bot: the same change for ranged defence.** Apply it to `troopSpot` in `js/bot.js` for ranged cards, and
-   test with `review` at once. This is the bot's most common stall.
-4. **Balance: stalemates and tower hit points.** Between 65 and 78 percent of AI-against-AI matches go to
-   overtime, and towers lose 20 to 25 percent of their hit points in 3 minutes. Check unit damage per second
-   against princess and king hit points, and whether AI pushes are too slow. Measure with
-   `match --bot ai:normal --vs ai:normal --n 40`.
-5. **AI: make the difficulty tiers differ in things that decide games.** Candidates: push frequency, whether it
-   counter-pushes, how many units it commits to a defence, and how well it uses spells. Measure with `match` at
-   n=40 or more. The target is a ladder in which each tier beats the one below it at 60 percent or more.
-6. **AI: stop sending tanks alone into towers.** The AI sends 4 to 6 troops alone into a tower per match. Hold a
-   tank until support is in the lane or a counter is ready. Owner: `js/ai.js`.
-7. **Bot: cycle defence and cheap cards.** Answer small threats with less, or weigh what a cheap card dies to.
-   Retune `cycle` with `sweep`. The sweep shows `defense.threatThreshold` and `timing.reactionMax` matter more
-   than `offense.aggression` for this preset.
-8. **Engine: defenders should not chase across the river.** Troops answering a threat chase it over the bridge
-   and die there. A leash to their own half would keep them alive for the next wave. Owner: the engine.
-9. **Bot: value Freeze and Fireball.** Include the tower-damage term and the value of hitting one large unit, so
-   the big spells are cast when they should be.
-10. **Engine and AI: keep the bridge mouth and tower back edge clear.** The packed units there are a crowding
-    issue that a spacing rule at deploy would ease.
+- Stalemates remain. AI vs AI matches still end 0-0 on crowns about half the time, so 75 to 81% reach
+  overtime. Two crowns in three minutes is what the 40% overtime target needs, and the current push rate gives
+  about 0.5 crowns per side. Crowns per side are roughly Poisson at this rate, which alone gives a tie of about
+  50%. The 40% target needs more decisive games (focus on one princess, a second push after a kill), not only
+  more pushes. Towers per match now clear the 0.8 target.
+- Difficulty tiers: `ai:normal` over `ai:easy` and `ai:hard` over `ai:easy` clear 65% and 80%. `ai:hard` over
+  `ai:normal` is 51 to 63% across seeds, short of 65%. Counter errors and reaction time matter less than
+  expected, so the gap is set by shared bot logic, not by overlay values.
+- Presets. `cycle` (10 to 25%) and `turtle` (15%) and `bridgespam` (28%) are below 40%. `cycle` makes about
+  57 defensive plays and 2 pushes per match, and its cheap troops die chasing into the enemy half. `turtle`
+  rarely pushes and gets outscored. Neither is fixed by the knobs I swept (`defense.threatThreshold`,
+  `defense.overcommit`, `elixir.pushThreshold`, `offense.aggression`, `cycle.cardsPer10s`).
+- Units still get stuck in pockets between two of their own buildings (a Hog Rider beside its own princess and
+  cannon, for example), and crowds at the bridge mouths slow troops. simtest counts the windows these cause; see
+  Limits.
 
 ## Limits
 
@@ -493,11 +398,14 @@ Priority reflects the effect on how useful the computer opponent is as a test, a
   each matchup. The head-to-head numbers mix strategy and deck.
 - Spell measurement is approximate. Impact is checked after the flight time, so units that move during the
   flight can be counted as hits or misses. Logs and barrels are not checked in the reviews.
+- simtest's walk-speed check (`trackWalk`) fails with 111 open-ground and 56 building-touching windows over 40
+  random-bot matches. Those are wedges in pockets between obstacles, not a crawl along one footprint. The check
+  is strict on purpose: it does not yet pass.
 - The stall threshold (0.25 tiles/s over 5 s) is a heuristic. It catches the crawls described above. It will
   also report a unit held by a large crowd, under the "jam" label.
 - The engine and card data are being changed by another agent. These results are for the state at the time
   of each run. Re-run `tournament`, `sweep` and the reviews after engine changes.
-- `CR.AI`, the engine and the cards are not changed by the lab, so the findings are for the current code.
+- `CR.AI` is now a preset-based adapter over `CR.Bot`, so the lab measures the computer opponent through the bot.
 - Not done: worker-thread parallelism (matches run in about 10 seconds for a full tournament at n=6 without
   it), browser wiring for the bot, and a test suite for `js/bot.js`. The checks run during development were a
   deterministic replay of one match, a schema against defaults check, and all CLI paths including errors.

@@ -521,7 +521,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var self = this, best = null;
     me.hand.forEach(function (cid, hIdx) {
       var R = self.R(cid);
-      if (!R || !R.troop || R.cost > me.elixir) return;
+      if (!R || !(R.troop || (R.building && !R.winCon)) || R.cost > me.elixir) return;
       if (!best || R.cost < best.R.cost) best = { hIdx: hIdx, R: R };
     });
     if (!best) return null;
