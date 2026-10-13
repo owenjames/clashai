@@ -33,6 +33,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
   var FONT = "'Lilita One', 'Arial Rounded MT Bold', 'Arial Black', Arial, sans-serif";
   var FONT_URL = 'assets/fonts/LilitaOne-Regular.ttf';
   var TOP_FX = { hit: 1, zap: 1, lightning: 1, chain: 1, death: 1, spawn: 1, elixir: 1, deploy: 1, towerDown: 1 };
+  // Tower art width in tiles, by type (footprint: king 4, princess 3). Height follows the art's aspect ratio.
+  var TOWER_W = { king: 4.3, princess: 3.2 };  // 4.3 keeps the team 1 king's roof (5 tiles tall) inside the arena
 
   // Canvas colours for the arena painter (same as js/render.js).
   var CS = {
@@ -352,6 +354,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     this.cssH = 0;
     this.insets = { top: 0, bottom: 0, left: 0, right: 0 };
     this.T = 0;
+    this._pxPerTile = 1;  // device px per tile; set by _onLayout, kept across battles
     this.ox = 0;
     this.oy = 0;
     this.panelTop = 0;
@@ -435,7 +438,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     this._dzKey = null;
     this._dzGame = null;
     this._dzAt = -1e9;
-    this._pxPerTile = 1;
+    this._trail = new WeakMap();
   };
 
   // Hides every view. Towers are destroyed (at most six per battle) and rebuilt by the next game.
@@ -454,6 +457,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     this._towers.forEach(function (v) {
       v.root.destroy({ children: true });
       v.shadow.destroy();
+      if (v.ring) v.ring.destroy();
       if (v.pill) v.pill.destroy();
       if (v.pillT) v.pillT.destroy();
       if (v.zz) v.zz.destroy();
@@ -580,6 +584,18 @@ var CR = (globalThis.CR = globalThis.CR || {});
   PixiRenderer.prototype._bakeArena = function () {
     var T = this.T;
     var d = this.dpr;
+    // Art arena (manifest.arena): one image covering the play area plus a margin, 1 tile = 1 world unit.
+    var art = CR.Sprites && CR.Sprites.arena ? CR.Sprites.arena() : null;
+    if (art) {
+      var prev = this._arenaTex;
+      this._arenaTex = null;
+      this._arena.texture = art.tex;
+      this._arena.position.set(-art.pad, -art.pad);
+      this._arena.width = W + 2 * art.pad;
+      this._arena.height = H + 2 * art.pad;
+      if (prev) prev.destroy(true);
+      return;
+    }
     var c = document.createElement('canvas');
     c.width = Math.max(1, Math.ceil(W * T * d));
     c.height = Math.max(1, Math.ceil(H * T * d));
@@ -618,14 +634,27 @@ var CR = (globalThis.CR = globalThis.CR || {});
     return -1;
   };
 
+  // Team identity on the ground: a team-coloured disc with a team rim and a light outline.
+  // rx, ry: radii in tiles, drawn in world coordinates into g (the caller clears it).
+  function groundRing(g, x, y, rx, ry, team, alpha) {
+    var rim = Math.max(0.07, rx * 0.14);
+    g.ellipse(x, y, rx, ry).fill({ color: team.main, alpha: 0.3 * alpha });
+    g.ellipse(x, y, rx, ry).stroke({ width: rim, color: team.main, alpha: alpha });
+    g.ellipse(x, y, rx + rim * 0.5 + 0.02, ry + rim * 0.5 + 0.01).stroke({ width: 0.035, color: 0xffffff, alpha: 0.9 * alpha });
+  }
+
   // ---------- units ----------
 
   // Visual for a unit: baked troop frames when CR.TroopArt exists, else the manifest or token placeholder.
   PixiRenderer.prototype._unitVisual = function (e) {
-    var r = radiusOf(e);
-    var tilesH = 1.4 * (r / 0.5);
-    var t = CR.Sprites.troop(e.unitId, e.team === 1 ? 1 : 0, tilesH, this._pxPerTile);
-    return t || CR.Sprites.unit(e.unitId);
+    return this._visualFor(e.unitId, e.team === 1 ? 1 : 0, radiusOf(e));
+  };
+
+  // Art for a unit drawn at radius r: manifest art first, then baked troop art, then the token.
+  PixiRenderer.prototype._visualFor = function (unitId, team, r) {
+    var art = CR.Sprites.unitArt(unitId);
+    if (art) return art;
+    return CR.Sprites.troop(unitId, team, 1.4 * (r / 0.5), this._pxPerTile) || CR.Sprites.unit(unitId);
   };
 
   PixiRenderer.prototype._makeUnitView = function () {
@@ -634,7 +663,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var v = {
       root: new PIXI.Container(),
       shadow: new PIXI.Sprite(CR.Sprites.tex.shadow()),
-      ring: new PIXI.Sprite(CR.Sprites.tex.ring()),
+      ring: new PIXI.Graphics(),
       rage: new PIXI.Sprite(CR.Sprites.tex.glow()),
       shield: new PIXI.Sprite(CR.Sprites.tex.ring()),
       body: new PIXI.Sprite(empty),
@@ -645,7 +674,6 @@ var CR = (globalThis.CR = globalThis.CR || {});
       vis: null
     };
     v.shadow.anchor.set(0.5);
-    v.ring.anchor.set(0.5);
     v.rage.anchor.set(0.5);
     v.shield.anchor.set(0.5);
     v.flash.blendMode = 'add';
@@ -807,7 +835,6 @@ var CR = (globalThis.CR = globalThis.CR || {});
     v.body.scale.set(v.baseS * mirror * sx, v.baseS * sy);
     v.body.tint = frozen ? P.ice : 0xffffff;
     v.body.alpha = deploying ? 0.55 : invuln ? 0.4 : 1;
-    if (!vis.troop && !vis.placeholder) v.body.tint = frozen ? P.ice : teamTint(vis, team);
 
     if (e.hp < v.hpPrev - 1e-9) v.flashT = time;
     v.hpPrev = e.hp;
@@ -830,11 +857,9 @@ var CR = (globalThis.CR = globalThis.CR || {});
     v.shadow.width = 1.9 * r;
     v.shadow.height = 0.95 * r;
     v.shadow.alpha = ground ? 0.45 : 0.85;
-    v.ring.position.set(x, y);
-    v.ring.width = 2 * r * 1.05;
-    v.ring.height = v.ring.width * 0.55;
-    v.ring.tint = team.main;
-    v.ring.alpha = 0.9;
+    v.ring.clear();
+    groundRing(v.ring, x, y, r * 1.05, r * 0.55, team, 1);
+    v.ring.alpha = 1;
 
     var st = e.stunT > 0;
     for (var i = 0; i < 3; i++) {
@@ -879,10 +904,6 @@ var CR = (globalThis.CR = globalThis.CR || {});
       g.stroke({ width: 0.06, color: 0xffffff, alpha: 0.8 });
     }
   };
-
-  function teamTint(vis, team) {
-    return vis.tintable ? team.main : 0xffffff;
-  }
 
   // Death: the unit's last frame or death frames play, then it fades out and is recycled.
   PixiRenderer.prototype._startDying = function (v, now) {
@@ -941,6 +962,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
       team: e.team,
       root: new PIXI.Container(),
       shadow: new PIXI.Sprite(CR.Sprites.tex.shadow()),
+      ring: new PIXI.Graphics(),
       body: new PIXI.Sprite(PIXI.Texture.EMPTY),
       roof: new PIXI.Sprite(CR.Sprites.tex.roof()),
       trim: new PIXI.Sprite(CR.Sprites.tex.roundRect()),
@@ -969,7 +991,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     v.flash.alpha = 0.8;
     v.root.addChild(v.body, v.trim, v.roof, v.icon, v.flash);
     L.sort.addChild(v.root);
-    L.shadow.addChild(v.shadow);
+    L.shadow.addChild(v.shadow, v.ring);
     L.label.addChild(v.pill, v.pillT, v.zz);
     return v;
   };
@@ -989,23 +1011,27 @@ var CR = (globalThis.CR = globalThis.CR || {});
       return;
     }
     var vis = CR.Sprites.tower(v.type, e.team);
-    if (vis !== v.vis) {
+    var tw = TOWER_W[v.type] || v.size * 1.07;
+    if (vis !== v.vis || tw !== v.tw) {
       v.vis = vis;
+      v.tw = tw;
       var tex0 = vis.frames.idle[0];
-      var hT = vis.h * (v.size / 3);
+      // Width comes from the footprint; height follows the art so it never stretches.
+      var hT = tw * (tex0.height / tex0.width);
       v.hT = hT;
       v.body.texture = tex0;
       v.body.anchor.set(vis.anchor.x, vis.anchor.y);
+      v.body.width = tw;
       v.body.height = hT;
-      v.body.width = hT * (tex0.width / tex0.height);
       v.flash.texture = tex0;
       v.flash.anchor.set(vis.anchor.x, vis.anchor.y);
-      v.flash.width = v.body.width;
-      v.flash.height = v.body.height;
+      v.flash.width = tw;
+      v.flash.height = hT;
     }
     var team = teamN(e.team);
     var half = v.size / 2;
-    var feetY = e.y + half * 0.85;
+    // The base stands on the bottom edge of the footprint: y 31 for the team 0 king, y 5 for team 1.
+    var feetY = e.y + half;
     var active = v.type !== 'king' || e.active !== false;
     if (v.type === 'king' && active && !v.wasActive) v.wakeMs = now;
     v.wasActive = active;
@@ -1020,28 +1046,33 @@ var CR = (globalThis.CR = globalThis.CR || {});
     v.root.scale.set(bounce);
     v.body.tint = active ? 0xffffff : 0xc9cfdc;
     v.body.alpha = 1;
-    v.shadow.visible = true;
-    v.shadow.position.set(e.x + 0.12, feetY);
-    v.shadow.width = v.size * 1.1;
-    v.shadow.height = v.size * 0.55;
 
+    // Ground: team ring under the footprint, shadow under the base.
+    v.ring.visible = true;
+    v.ring.clear();
+    groundRing(v.ring, e.x, feetY - half * 0.3, half * 1.05, half * 0.5, team, 1);
+    v.shadow.visible = true;
+    v.shadow.position.set(e.x, feetY);
+    v.shadow.width = tw * 1.05;
+    v.shadow.height = tw * 0.36;
+
+    // Procedural towers have no team art, so their roof and trim stay neutral; team colour is the ring and pill.
     var placeholder = vis.placeholder;
     v.roof.visible = placeholder;
     v.icon.visible = placeholder;
     v.trim.visible = placeholder;
     if (placeholder) {
-      // Team trim along the front face, team roof on top. Both stay in team colour when a king is asleep.
       v.trim.position.set(0, -0.2);
       v.trim.width = v.size * 0.92;
       v.trim.height = 0.32;
-      v.trim.tint = team.dark;
+      v.trim.tint = 0x2a2430;
       var rw = v.size - 0.7;
       var rh = v.size - 1.3;
       var ry = -hT0(v) + 0.35;
       v.roof.position.set(0, ry);
       v.roof.width = rw;
       v.roof.height = rh;
-      v.roof.tint = team.main;
+      v.roof.tint = 0xe9e4d6;
       v.icon.position.set(0, ry + rh / 2);
       var ch = v.type === 'king' ? '\u{1F451}' : '\u{1F3F9}';
       v.icon.texture = CR.Sprites.emoji(ch);
@@ -1052,13 +1083,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
     v.flash.visible = time - v.flashT < FLASH_S;
     v.flash.scale.copyFrom(v.body.scale);
 
-    // HP pill above the tower (below when there is no room), like Clash Royale.
+    // HP pill above the tower top, or below the base when the top would leave the arena (team 1 king).
     var txt = String(Math.max(0, Math.ceil(e.hp || 0)));
     var pw = Math.max(1.1, 0.34 * txt.length + 0.5);
-    // Pill sits just above the top of the tower body (below it when the top edge has no room), like the Canvas renderer.
     var topY = feetY - hT0(v);
-    var above = topY - 0.4 >= 0.9;
-    var py = above ? topY - 0.4 : feetY + 0.4;
+    var above = topY - 0.45 >= 0;
+    var py = above ? topY - 0.45 : feetY + 0.45;
     var key = txt + '|' + pw + '|' + (e.team === 1 ? 1 : 0);
     if (v.pillKey !== key) {
       v.pillKey = key;
@@ -1089,6 +1119,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
     v.alive = false;
     v.root.visible = false;
     v.shadow.visible = false;
+    v.ring.visible = false;
     v.pill.visible = false;
     v.pillT.visible = false;
     v.zz.visible = false;
@@ -1379,7 +1410,8 @@ var CR = (globalThis.CR = globalThis.CR || {});
       if (p.life <= 0) continue;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      if (p.kind === 'debris' || p.kind === 'confetti') p.vy += 9 * dt;
+      if (p.kind === 'debris') p.vy += 9 * dt;
+      else if (p.kind === 'confetti') p.vy += (2.2 - p.vy) * dt * 0.9;  // drifts down at about 2 tiles/s
       else p.vy *= 1 - dt * 3;
       p.vx *= 1 - dt * 2.5;
       parts[j++] = p;
@@ -1435,21 +1467,25 @@ var CR = (globalThis.CR = globalThis.CR || {});
         x: Math.random() * W,
         y: -1 - Math.random() * 6,
         vx: (Math.random() - 0.5) * 2,
-        vy: 2 + Math.random() * 3,
+        vy: 1 + Math.random() * 2,
         life: 2.5,
         max: 2.5,
         color: CONFETTI[i % CONFETTI.length],
-        size: 0.16 + Math.random() * 0.1,
+        size: 0.24 + Math.random() * 0.14,
         rot: Math.random() * TAU,
         spin: Math.random() * 8 - 4
       });
     }
   };
 
-  // Projectiles: one sprite each, rotated along the flight for arrows, spears and bullets.
+  // Projectiles: one sprite each, rotated along the flight for arrows, spears and bullets. Each keeps a short
+  // trail of soft puffs behind it, drawn under the units.
+  var TRAIL_N = 6;
+  var TRAIL_TINT = { arrow: 0xe8ecf5, spear: 0xe8ecf5, bullet: 0xfff3b0, cannonball: 0xaab0bb, bomb: 0xbbbbbb, fire: 0xff9a3a, magic: 0xff8ad8, ice: 0xbff3ff, goo: 0xc49bff };
   PixiRenderer.prototype._drawProjectiles = function (game) {
     var list = game.projectiles || [];
     var al = this._al.sort;
+    var ab = this._al.fxBelow;
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       if (!p) continue;
@@ -1471,6 +1507,23 @@ var CR = (globalThis.CR = globalThis.CR || {});
       s.width = s.height = vis.h;
       s.rotation = p.kind === 'arrow' || p.kind === 'spear' || p.kind === 'bullet' ? ang : 0;
       s.zIndex = p.y + 0.5 + (p.air ? 64 : 0);
+
+      var tr = this._trail.get(p);
+      if (!tr) {
+        tr = [];
+        this._trail.set(p, tr);
+      }
+      if (!tr.length || tr[0][0] !== p.x || tr[0][1] !== p.y) tr.unshift([p.x, p.y]);
+      if (tr.length > TRAIL_N) tr.length = TRAIL_N;
+      var tint = TRAIL_TINT[p.kind] != null ? TRAIL_TINT[p.kind] : 0xffffff;
+      for (var j = 1; j < tr.length; j++) {
+        var f = 1 - j / TRAIL_N;
+        var puff = ab.sprite(CR.Sprites.tex.trail());
+        puff.position.set(tr[j][0], tr[j][1]);
+        puff.width = puff.height = vis.h * (0.4 + 0.9 * f);
+        puff.alpha = 0.55 * f;
+        puff.tint = tint;
+      }
     }
   };
 
@@ -1802,9 +1855,10 @@ var CR = (globalThis.CR = globalThis.CR || {});
       g.circle(sx, sy, def.range).fill({ color: 0xffffff, alpha: 0.06 });
       g.circle(sx, sy, def.range).stroke({ width: 0.05, color: 0xffffff, alpha: 0.45 });
     }
-    var vis = CR.Sprites.unit(card.unit);
-    var hT = vis.h * (r / 0.5);
-    var tint = ok ? (vis.tintable ? tc.main : 0xffffff) : P.invalidSolid;
+    var rd = def.kind === 'troop' ? r * 1.2 + 0.1 : r;
+    var vis = this._visualFor(card.unit, team, rd);
+    var hT = vis.troop ? vis.h : vis.h * (rd / 0.5);
+    var tint = ok ? 0xffffff : P.invalidSolid;
     for (var i = 0; i < offs.length; i++) {
       var px = sx + offs[i][0];
       var py = sy + offs[i][1];
@@ -1860,7 +1914,9 @@ var CR = (globalThis.CR = globalThis.CR || {});
             if (e2 && e2.kind === 'tower' && e2.towerType === 'king' && e2.team === r.winner) king2 = e2;
           }
           var x = king2 ? king2.x : W / 2;
-          var y = king2 ? king2.y + (r.winner === 0 ? -3.4 : 3.4) : H / 2;
+          // Clear of the king's HP pill: above it for team 0, below it for team 1.
+          var tv = king2 ? this._towers.get(towerKey(king2)) : null;
+          var y = tv && tv.pill ? tv.pill.position.y + (r.winner === 0 ? -0.95 : 1.15) : H / 2;
           var et = al.label.label('Winner!', 1.4 * ease(age / 0.3), P.gold);
           et.position.set(x, y);
           et.alpha = clamp(age / 0.2, 0, 1);
@@ -2239,16 +2295,16 @@ var CR = (globalThis.CR = globalThis.CR || {});
     var iy = y + 2.5;
     var iw = w - 5;
     var ih = h - 5;
-    g.roundRect(ix, iy, iw, ih, 5).fill({ color: P.cardArt });
+    g.roundRect(ix, iy, iw, ih, 5).fill({ color: hexN(CR.Sprites.cardBg(card.rarity)) });
     var bandH = o.compact ? 13 : Math.max(14, h * 0.24);
     var artH = ih - bandH;
     g.roundRect(ix, iy + artH, iw, bandH, 4).fill({ color: P.cardBand });
 
-    var size = Math.min(artH * 0.72, w * 0.52);
-    this.art.texture = CR.Sprites.emoji(card.emoji || '?');
-    this.art.position.set(x + w / 2, iy + artH / 2 + 1);
-    this.art.width = size;
-    this.art.height = size;
+    var side = Math.min(iw, artH);
+    this.art.texture = CR.Sprites.cardArt(cardId) || PIXI.Texture.EMPTY;
+    this.art.position.set(x + w / 2, iy + artH / 2);
+    this.art.width = side;
+    this.art.height = side;
 
     var label = o.label || card.name || '';
     var fs = Math.max(6, Math.min(o.compact ? 9 : 10.5, (iw - 6) / (Math.max(1, label.length) * 0.6)));

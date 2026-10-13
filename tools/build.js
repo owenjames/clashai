@@ -20,6 +20,7 @@ const SCRIPTS = [
   'js/bot.js',
   'js/ai.js',
   'js/vendor/pixi.min.js',
+  'js/troopart.js',
   'js/sprites.js',
   'js/render.js',
   'js/render-pixi.js',

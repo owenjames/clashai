@@ -9,8 +9,12 @@ var CR = (globalThis.CR = globalThis.CR || {});
 
   var TAU = Math.PI * 2;
   var MANIFEST_URL = 'assets/manifest.json';
+  // Private art (licensed packs, gitignored): merged over the base manifest when present.
+  var ART_MANIFEST_URL = 'art/manifest.json';
+  var MERGE_SECTIONS = ['units', 'buildings', 'towers', 'projectiles', 'effects', 'ui'];
   var STATES = ['idle', 'walk', 'attack', 'death'];
   var EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  var TRAIL_SRC = 'assets/vfx/particles/light_01.png';
 
   var manifest = {};
   var gen = 0;          // bumps when the manifest finishes loading; renderers rebuild views on change
@@ -112,47 +116,90 @@ var CR = (globalThis.CR = globalThis.CR || {});
     });
   }
 
+  // Projectiles at phone size: thick ink outlines so each shot reads against grass and river.
   function projectileTex(kind) {
     return bake('proj|' + kind, 64, 64, function (g) {
       var cx = 32;
       var cy = 32;
+      var ink = '#1d1a33';
       g.lineCap = 'round';
+      g.lineJoin = 'round';
       if (kind === 'arrow' || kind === 'spear') {
+        var metal = kind === 'arrow' ? '#e4e9f2' : '#c9d2e0';
+        var wood = kind === 'arrow' ? '#8a5a2b' : '#9b6a34';
+        var sw = kind === 'arrow' ? 8 : 9;
         g.beginPath();
-        g.moveTo(cx - 26, cy);
-        g.lineTo(cx + 18, cy);
-        g.lineWidth = kind === 'arrow' ? 4 : 5;
-        g.strokeStyle = kind === 'arrow' ? '#4d3418' : '#7a5226';
+        g.moveTo(cx - 22, cy);
+        g.lineTo(cx + 14, cy);
+        g.lineWidth = sw + 6;
+        g.strokeStyle = ink;
+        g.stroke();
+        g.lineWidth = sw;
+        g.strokeStyle = wood;
+        g.stroke();
+        // Head, then fletching at the tail.
+        g.beginPath();
+        g.moveTo(cx + 29, cy);
+        g.lineTo(cx + 12, cy - 12);
+        g.lineTo(cx + 12, cy + 12);
+        g.closePath();
+        g.fillStyle = metal;
+        g.fill();
+        g.lineWidth = 4;
+        g.strokeStyle = ink;
         g.stroke();
         g.beginPath();
-        g.arc(cx + 22, cy, 6, 0, TAU);
-        g.fillStyle = '#c9ced6';
-        g.fill();
+        g.moveTo(cx - 22, cy);
+        g.lineTo(cx - 31, cy - 9);
+        g.moveTo(cx - 22, cy);
+        g.lineTo(cx - 31, cy + 9);
+        g.lineWidth = 5;
+        g.strokeStyle = ink;
+        g.stroke();
       } else if (kind === 'cannonball' || kind === 'bomb') {
         g.beginPath();
-        g.arc(cx, cy, kind === 'bomb' ? 14 : 18, 0, TAU);
-        g.fillStyle = kind === 'bomb' ? '#202024' : '#15151a';
+        g.arc(cx, cy, kind === 'bomb' ? 17 : 20, 0, TAU);
+        g.fillStyle = kind === 'bomb' ? '#2a2a31' : '#3b3d46';
         g.fill();
+        g.lineWidth = 5;
+        g.strokeStyle = ink;
+        g.stroke();
         g.beginPath();
-        g.arc(cx - 6, cy - 6, 6, 0, TAU);
-        g.fillStyle = '#5a5a66';
+        g.arc(cx - 7, cy - 7, 6, 0, TAU);
+        g.fillStyle = '#8c909c';
         g.fill();
+        if (kind === 'bomb') {
+          g.beginPath();
+          g.arc(cx + 10, cy - 14, 4, 0, TAU);
+          g.fillStyle = '#ffb22e';
+          g.fill();
+        }
       } else if (kind === 'fire' || kind === 'magic' || kind === 'ice' || kind === 'goo') {
-        var outer = { fire: 'rgba(255,120,30,0.5)', magic: 'rgba(255,110,210,0.45)', ice: 'rgba(160,230,255,0.55)', goo: 'rgba(154,79,216,0.6)' }[kind];
+        var outer = { fire: 'rgba(255,120,30,0.6)', magic: 'rgba(255,110,210,0.55)', ice: 'rgba(160,230,255,0.65)', goo: 'rgba(154,79,216,0.7)' }[kind];
         var core = { fire: '#ffb22e', magic: '#ff8ad8', ice: '#c7f1ff', goo: '#9a4fd8' }[kind];
         g.beginPath();
         g.arc(cx, cy, 30, 0, TAU);
         g.fillStyle = outer;
         g.fill();
         g.beginPath();
-        g.arc(cx, cy, 18, 0, TAU);
+        g.arc(cx, cy, 19, 0, TAU);
         g.fillStyle = core;
+        g.fill();
+        g.lineWidth = 4;
+        g.strokeStyle = ink;
+        g.stroke();
+        g.beginPath();
+        g.arc(cx - 5, cy - 6, 5, 0, TAU);
+        g.fillStyle = '#ffffff';
         g.fill();
       } else {
         g.beginPath();
-        g.arc(cx, cy, 10, 0, TAU);
+        g.arc(cx, cy, 13, 0, TAU);
         g.fillStyle = '#ffffff';
         g.fill();
+        g.lineWidth = 5;
+        g.strokeStyle = ink;
+        g.stroke();
       }
     });
   }
@@ -256,6 +303,10 @@ var CR = (globalThis.CR = globalThis.CR || {});
         g.stroke();
       });
     },
+    // Soft particle for projectile trails: the vfx light sprite when it loaded, else the glow blob.
+    trail: function () {
+      return sources[TRAIL_SRC] || tex.glow();
+    },
     // Red diagonal stripes for invalid deploy cells. Repeats.
     stripes: function () {
       return bake('stripes', 16, 16, function (g) {
@@ -270,6 +321,91 @@ var CR = (globalThis.CR = globalThis.CR || {});
       });
     }
   };
+
+  // ---------- card portraits ----------
+
+  // Solid card-art background per rarity (the card frame uses the darker rarity colour).
+  var CARD_BG = { common: '#d9c09a', rare: '#f6cf8a', epic: '#d9b2f2', legendary: '#fbeaa0' };
+  var CARD_FRAME = { common: '#9a7b57', rare: '#e0932f', epic: '#a25ce0', legendary: '#f0c93a' };
+  var cardArts = {};    // card id -> Texture
+
+  // Canvas copy of a texture's frame (manifest frame or sheet cell).
+  function textureCanvas(t) {
+    var f = t && t.frame;
+    var src = t && t.source && t.source.resource;
+    if (!src || !f) return null;
+    var c = mkCanvas(Math.max(1, Math.round(f.width)), Math.max(1, Math.round(f.height)));
+    c.getContext('2d').drawImage(src, f.x, f.y, f.width, f.height, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  // Bounding box of the opaque pixels in a canvas, or null when empty.
+  function alphaBox(c) {
+    var w = c.width;
+    var h = c.height;
+    var d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    var x0 = w;
+    var x1 = -1;
+    var y0 = h;
+    var y1 = -1;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (d[(y * w + x) * 4 + 3] > 40) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return null;
+    return { x0: x0, y0: y0, w: x1 - x0 + 1, h: y1 - y0 + 1, cx: (x0 + x1 + 1) / 2 };
+  }
+
+  // Upper body (head to chest) of a character canvas, on the card background. 160 px square.
+  function characterPortrait(src, bg) {
+    var out = mkCanvas(160, 160);
+    var g = out.getContext('2d');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, 160, 160);
+    var box = alphaBox(src);
+    if (!box) return out;
+    var side = Math.min(Math.max(box.h * 0.62, box.w * 0.9), src.width, src.height);
+    var sx = Math.min(Math.max(box.cx - side / 2, 0), src.width - side);
+    var sy = Math.min(Math.max(box.y0, 0), src.height - side);
+    g.drawImage(src, sx, sy, side, side, 0, 0, 160, 160);
+    return out;
+  }
+
+  // Spells and anything without a character: the card emoji on the background.
+  function emojiPortrait(ch, bg) {
+    var out = mkCanvas(160, 160);
+    var g = out.getContext('2d');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, 160, 160);
+    g.font = '104px ' + EMOJI_FONT;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(ch, 80, 86);
+    return out;
+  }
+
+  // Manifest art for a unit id: the idle frame, or null when the manifest has none.
+  function artCanvas(unitId) {
+    var art = Sprites.unitArt(unitId);
+    return art ? textureCanvas(art.frames.idle[0]) : null;
+  }
+
+  // Idle frame of baked troop art (team 0 colours), or null.
+  function troopIdleCanvas(unitId) {
+    if (!CR.TroopArt || typeof CR.TroopArt.bake !== 'function') return null;
+    try {
+      var b = CR.TroopArt.bake(unitId, 0, { height: 200, dpr: 1, poses: ['idle'] });
+      return b && b.frames && b.frames.idle ? b.frames.idle[0] : null;
+    } catch (err) {
+      return null;
+    }
+  }
 
   // ---------- manifest ----------
 
@@ -286,6 +422,7 @@ var CR = (globalThis.CR = globalThis.CR || {});
         for (var s in entry.frames) (entry.frames[s] || []).forEach(add);
       }
     }
+    scan(m.arena);
     ['units', 'buildings', 'projectiles', 'effects', 'ui'].forEach(function (sec) {
       var o = m[sec] || {};
       for (var k in o) {
@@ -299,6 +436,25 @@ var CR = (globalThis.CR = globalThis.CR || {});
       scan(towers[t]);
       scan(towers[t].team0);
       scan(towers[t].team1);
+    }
+    return out;
+  }
+
+  // JSON or null. A missing file is not an error: the caller falls back to procedural art.
+  function fetchJson(url) {
+    return fetch(url, { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  // Section-level merge: entries in art replace base entries with the same key.
+  function mergeManifests(base, art) {
+    var out = {};
+    var k;
+    for (k in base) out[k] = base[k];
+    for (k in art) {
+      var isSection = MERGE_SECTIONS.indexOf(k) >= 0 && base[k] && typeof base[k] === 'object';
+      out[k] = isSection ? Object.assign({}, base[k], art[k]) : art[k];
     }
     return out;
   }
@@ -423,15 +579,17 @@ var CR = (globalThis.CR = globalThis.CR || {});
     // Resolves true when a manifest was read and its art loaded (or was empty). Never rejects.
     load: function (url) {
       var list = null;
-      return fetch(url || MANIFEST_URL, { cache: 'no-cache' })
-        .then(function (r) {
-          if (!r.ok) throw new Error('manifest ' + r.status);
-          return r.json();
+      return fetchJson(url || MANIFEST_URL)
+        .then(function (base) {
+          base = base && typeof base === 'object' ? base : {};
+          return fetchJson(ART_MANIFEST_URL).then(function (art) {
+            return art && typeof art === 'object' ? mergeManifests(base, art) : base;
+          });
         })
-        .catch(function () { return {}; })
         .then(function (m) {
-          manifest = m && typeof m === 'object' ? m : {};
+          manifest = m;
           list = collectSrcs(manifest);
+          if (list.indexOf(TRAIL_SRC) < 0) list.push(TRAIL_SRC);
           return loadSources(list);
         })
         .then(function () {
@@ -441,13 +599,18 @@ var CR = (globalThis.CR = globalThis.CR || {});
         })
         .catch(function () { return false; });
     },
-    // Unit or building visual, or the token placeholder.
-    unit: function (unitId) {
-      var v = cached('unit|' + unitId, function () {
+    // Manifest art for a unit or building, or null. The renderer falls back to baked troop art, then the token.
+    unitArt: function (unitId) {
+      return cached('unit|' + unitId, function () {
         var m = manifest.buildings && manifest.buildings[unitId] ? manifest.buildings[unitId] : (manifest.units || {})[unitId];
-        return fromEntry(m) || placeholderVisual('unit', unitId);
+        return fromEntry(m);
       });
-      return v;
+    },
+    // Unit visual for the token placeholder path (manifest art or token).
+    unit: function (unitId) {
+      return Sprites.unitArt(unitId) || cached('ph|unit|' + unitId, function () {
+        return placeholderVisual('unit', unitId);
+      });
     },
     tower: function (type, team) {
       return cached('tower|' + type + '|' + team, function () {
@@ -469,8 +632,9 @@ var CR = (globalThis.CR = globalThis.CR || {});
         return list.length ? list : null;
       });
     },
-    // Troop frames baked by CR.TroopArt at the current size, or null (use the token placeholder).
-    // tilesH: height in tiles for a r = 0.5 unit. pxPerTile: device px per tile.
+    // Troop frames baked by CR.TroopArt. tilesH: standing height in tiles of a r = 0.5 unit (the renderer
+    // passes 1.4 * r / 0.5); the bake's relative size (goblins smaller, giants bigger) applies on top.
+    // pxPerTile: device px per tile. The visual's h is the whole canvas height in tiles, anchor the feet.
     troop: function (unitId, team, tilesH, pxPerTile) {
       if (!CR.TroopArt || typeof CR.TroopArt.bake !== 'function') return null;
       var hpx = Math.max(16, Math.round(tilesH * pxPerTile / 4) * 4);
@@ -478,21 +642,53 @@ var CR = (globalThis.CR = globalThis.CR || {});
       if (!(key in visuals)) {
         var out = null;
         try {
-          var b = CR.TroopArt.bake(unitId, team, { height: hpx });
+          var b = CR.TroopArt.bake(unitId, team, { height: hpx, dpr: 1 });
           if (b && b.frames) {
+            var W = b.size.width;
+            var H = b.size.height;
             var frames = {};
-            ["idle", "walk", "attack", "death"].forEach(function (st) {
+            ['idle', 'walk', 'attack', 'death'].forEach(function (st) {
               var list = b.frames[st] && b.frames[st].length ? b.frames[st] : b.frames.idle;
               frames[st] = list.map(function (c) { return PIXI.Texture.from(c); });
             });
-            out = { frames: frames, fps: b.fps || 10, anchor: { x: 0.5, y: 1 }, h: tilesH, flip: false,
-              tintable: false, blend: "normal", tint: null, alpha: 1, spin: 0, placeholder: false, troop: true,
-              strikeIdx: Math.floor((frames.attack || []).length * 0.4) };
+            out = {
+              frames: frames, fps: b.fps || 10,
+              anchor: { x: b.size.anchor[0] / W, y: b.size.anchor[1] / H },
+              h: H / pxPerTile, flip: false, tintable: false, blend: 'normal', tint: null, alpha: 1, spin: 0,
+              placeholder: false, troop: true,
+              strikeIdx: Math.floor((frames.attack || []).length * 0.4)
+            };
           }
         } catch (err) { out = null; }
         visuals[key] = out;
       }
       return visuals[key];
+    },
+    // Card portrait: upper body of the unit's idle frame (manifest art, else baked troop art) on the rarity
+    // background, or the card emoji for spells. Built once per card.
+    cardArt: function (cardId) {
+      if (cardArts[cardId]) return cardArts[cardId];
+      var card = CR.CARDS && CR.CARDS[cardId];
+      if (!card) return null;
+      var bg = CARD_BG[card.rarity] || CARD_BG.common;
+      var src = card.type !== 'spell' && card.unit ? (artCanvas(card.unit) || troopIdleCanvas(card.unit)) : null;
+      var c = src ? characterPortrait(src, bg) : emojiPortrait(card.emoji || '?', bg);
+      cardArts[cardId] = PIXI.Texture.from(c);
+      return cardArts[cardId];
+    },
+    // Card art background and frame colours for a rarity, as CSS hex strings.
+    cardBg: function (rarity) {
+      return CARD_BG[rarity] || CARD_BG.common;
+    },
+    cardFrame: function (rarity) {
+      return CARD_FRAME[rarity] || CARD_FRAME.common;
+    },
+    // Arena background from manifest.arena: { tex, pad } or null for the procedural grass and river.
+    // pad: tiles of margin around the 18x32 play area that the image covers on each side.
+    arena: function () {
+      var a = manifest.arena;
+      var t = a && a.src ? sources[a.src] : null;
+      return t ? { tex: t, pad: a.pad || 0 } : null;
     },
     // UI icon texture from manifest.ui, or null for the built-in drawing.
     ui: function (name) {
